@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name        开门，查成分！
+// @name        FBI Open the door! B站评论区用户转发动态统计
 // @namespace   lightyears.im
 // @version     0.1
-// @description B站评论区查看用户所发布的动态数据统计
+// @description 统计B站评论区内用户转发动态的情况，按照原动态UP主分类。
 // @author      1MLightyears
 // @match       *://www.bilibili.com/video/*
 // @icon        https://static.hdslb.com/images/favicon.ico
