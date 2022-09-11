@@ -7,7 +7,7 @@
 // @match       *://www.bilibili.com/video/*
 // @icon        https://static.hdslb.com/images/favicon.ico
 // @grant       GM_xmlhttpRequest
-// @connect     https://api.bilibili.com/
+// @connect     api.bilibili.com
 // @license     Apache Licence 2.0
 // @run-at      document-end
 // ==/UserScript==
