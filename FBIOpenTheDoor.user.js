@@ -15,9 +15,9 @@
 /*
 本脚本的创意来自于 原神玩家指示器(https://greasyfork.org/zh-CN/scripts/450720-%E5%8E%9F%E7%A5%9E%E7%8E%A9%E5%AE%B6%E6%8C%87%E7%A4%BA%E5%99%A8)
 感谢 laupuz_xu(https://greasyfork.org/zh-CN/users/954434-laupuz-xu)!
+GitHub: https://github.com/1MLightyears/FBIOpenTheDoor
 */
 
-"https://github.com/1MLightyears/FBIOpenTheDoor"
 
 (function () {
   "use strict";
