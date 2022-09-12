@@ -1,0 +1,10 @@
+#### v0.2
+
+1. 解决了认证粉丝牌阻挡鼠标的issue；
+2. 增加了对动态页面和用户空间页面的评论区的支持；
+3. 修改了显示内容的格式：现在会在查询入口显示总的查询条数，在每条中显示具体条数和占总条数的百分比；
+4. 由于显示效果影响，将颜色“<span style="background-color:RoyalBlue">皇家蓝(RoyalBlue)</span>”更换为“<span style="background-color:Pink">粉色(Pink)</span>”。
+
+#### v0.1.1
+
+1. 初始版本

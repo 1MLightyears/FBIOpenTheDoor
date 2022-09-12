@@ -1,10 +1,12 @@
 // ==UserScript==
 // @name        FBI Open the door! B站评论区用户转发动态统计
 // @namespace   lightyears.im
-// @version     0.1
+// @version     0.2
 // @description 统计B站评论区内用户转发动态的情况，按照原动态UP主分类。
 // @author      1MLightyears
 // @match       *://www.bilibili.com/video/*
+// @match       *://t.bilibili.com/*
+// @match       *://space.bilibili.com/*
 // @icon        https://static.hdslb.com/images/favicon.ico
 // @grant       GM_xmlhttpRequest
 // @connect     api.bilibili.com
@@ -30,6 +32,7 @@ GitHub: https://github.com/1MLightyears/FBIOpenTheDoor
   const QS_UserHeader = "div.con > div.user";  // 评论的用户行DOM
   const QS_Uid = "a.name";  // 用户名DOM
   const QS_NewUser = `div.comment-list>div:not([${A_User}])`;  // 新刷出来的用户DOM
+
   const CSSSheet = `
 span.${CLASS_StatDOM} {
   text-align: center;
@@ -66,16 +69,23 @@ a.${CLASS_Gateway} {
   display: none;
   color: grey;
   padding-left: 20px;
+  position: inherit;
+  z-index: 128;
 }
 
 div.con:hover a.${CLASS_Gateway} {
   display: inline;
 }
+
+/* 干掉挡事的认证粉丝牌 */
+.sailing:hover {
+  display: none;
+}
 `
 
   // 颜色盘
   const pallete = [
-    "RoyalBlue",
+    "Pink",
     "LightSkyBlue",
     "Aqua",
     "SpringGreen",
@@ -121,6 +131,12 @@ div.con:hover a.${CLASS_Gateway} {
       for (let i in this.forwardCounter) {
         total += this.forwardCounter[i].count;
       }
+      this.gatewayDOM.text = `(已查询到${total}条) `;
+      if (this.has_more) {
+        this.gatewayDOM.text += "继续查！";
+      } else {
+        this.gatewayDOM.onclick = null;
+      }
       this.bannerDOM.innerHTML = "";
       this.statDOMs = [];
       for (let key in this.forwardCounter) {
@@ -131,10 +147,10 @@ div.con:hover a.${CLASS_Gateway} {
         statDOM.classList.add(CLASS_StatDOM);
         statDOM.style.backgroundColor = pallete[no];
         statDOM.style.width = `${Math.floor(this.forwardCounter[key].count / total * 100)}%`;  // 宽度与数量成比例
-        statDOM.innerHTML = `<a href='//space.bilibili.com/${key}'>${this.forwardCounter[key].name}</a>(${this.forwardCounter[key].count}/${total})`;
+        statDOM.innerHTML = `<a href='//space.bilibili.com/${key}'>${this.forwardCounter[key].name}</a>(${this.forwardCounter[key].count}, ${statDOM.style.width})`;
         statDOM.onmouseover = () => {
           if (this.statDOMs.length > 1)
-            statDOM.style.width = `max(calc(${Math.floor(this.forwardCounter[key].count / total * 100)}%), calc(${statDOM.innerText.length}em))`;  // 显示所有的字
+            statDOM.style.width = `max(calc(${Math.floor(this.forwardCounter[key].count / total * 100)}%), calc(${statDOM.innerText.length + 2}em))`;  // 显示所有的字，为数字和半角括号增加冗余空间
         }
         statDOM.onmouseleave = () => {
           statDOM.style.width = `${Math.floor(this.forwardCounter[key].count / total * 100)}%`;  // 宽度与数量成比例
@@ -144,10 +160,7 @@ div.con:hover a.${CLASS_Gateway} {
         this.bannerDOM.appendChild(statDOM);
       }
 
-      // 修饰整个成分条。转发总次数越多，成分条越长
-      if (!this.bannerDOM.classList.contains(CLASS_BannerDOM)) {
-        this.bannerDOM.classList.add(CLASS_BannerDOM);
-      }
+      this.bannerDOM.className = CLASS_BannerDOM;
     }
     fetchHomepage() {
       //// 拿B站API url
@@ -156,7 +169,6 @@ div.con:hover a.${CLASS_Gateway} {
     }
     getForwards() {
       //// XHR拿动态列表
-      if (!this.gatewayDOM.text) return;  // 说明没有新的了
       this.gatewayDOM.text = "/// 警方突击中 ///";
       GM_xmlhttpRequest({
         method: "get",
@@ -178,13 +190,14 @@ div.con:hover a.${CLASS_Gateway} {
                 } else {
                   this.forwardCounter[originalUpUid] = {
                     "name": item.orig.modules.module_author.name,
+                    "uid": item.orig.modules.module_author.mid,
                     "count": 1
                   }
                 }
               }
             }
             this.offset = resp.data.offset;
-            this.gatewayDOM.text = resp.data.has_more ? "继续查！" : "";
+            this.has_more = resp.data.has_more;
             this.renderBanner();
           } else {
             console.warn(`获取失败@uid=${this.uid}: status=${resp.status}`);
