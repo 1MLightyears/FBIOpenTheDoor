@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        FBI Open the door! B站评论区用户转发动态统计
 // @namespace   lightyears.im
-// @version     0.2
+// @version     0.3
 // @description 统计B站评论区内用户转发动态的情况，按照原动态UP主分类。
 // @author      1MLightyears
 // @match       *://www.bilibili.com/video/*
@@ -27,11 +27,14 @@ GitHub: https://github.com/1MLightyears/FBIOpenTheDoor
   const CLASS_BannerDOM = "FO-banner";  // 成分条class
   const CLASS_StatDOM = "FO-stat";  // 成分条里每个成分的class
   const CLASS_Gateway = "FO-gateway";  // 入口的class
+  const CLASS_UPiine = "reply-tags";  // "up主觉得很赞"的class
   const A_Uid = "data-usercard-mid";  // 用户Uid属性
   const A_User = "FO-user"  // 已经标注查成分的用户
-  const QS_UserHeader = "div.con > div.user";  // 评论的用户行DOM
+  const QS_MainCommentUserHeader = "div.con > div.user";  // 评论的用户行DOM
+  const QS_ReplyUserHeader = "div.reply-con > div.user";  // 楼中楼用户行DOM
   const QS_Uid = "a.name";  // 用户名DOM
-  const QS_NewUser = `div.comment-list>div:not([${A_User}])`;  // 新刷出来的用户DOM
+  const QS_NewUser = `div.reply-wrap:not([${A_User}])`;  // 新刷出来的用户DOM
+  const QS_ToolbarDOM = `div.info`;  // 评论下赞、踩、回复工具栏DOM
 
   const CSSSheet = `
 span.${CLASS_StatDOM} {
@@ -68,12 +71,13 @@ span.${CLASS_BannerDOM} a {
 a.${CLASS_Gateway} {
   display: none;
   color: grey;
-  padding-left: 20px;
   position: inherit;
   z-index: 128;
+  font-weight: 700;
 }
 
-div.con:hover a.${CLASS_Gateway} {
+div.con:hover>:not(.reply-box) a.${CLASS_Gateway},
+div.con div.reply-item:hover a.${CLASS_Gateway} {
   display: inline;
 }
 
@@ -99,13 +103,19 @@ div.con:hover a.${CLASS_Gateway} {
     "Silver",
   ]
 
+  // 评论类型
+  const TComment = {
+    MainComment: 0,  // 评论区评论
+    ReplyComment: 1,  // 评论区回复楼中楼评论
+  }
   class bilibiliUser {
     //// 评论用户类
     constructor(commentDOM) {
       //// 初始化用户类
 
       this.commentDOM = commentDOM;
-      this.userHeaderDOM = commentDOM.querySelector(QS_UserHeader);
+      this.toolbarDOM = this.locateToolbar();
+      this.userHeaderDOM = this.locateUserHeader();
       let userADOM = this.userHeaderDOM.querySelector(QS_Uid);
       this.uid = userADOM.getAttribute(A_Uid);
       this.name = userADOM.text;
@@ -114,19 +124,49 @@ div.con:hover a.${CLASS_Gateway} {
       this.statDOMs = [];
       this.offset = null;
 
-      // 修饰查成分入口
-      this.gatewayDOM = document.createElement("a");
-      this.gatewayDOM.classList.add(CLASS_Gateway);
-      this.gatewayDOM.innerHTML = "开门！查成分！";
-      this.gatewayDOM.onclick = this.getForwards.bind(this);
-
-      this.userHeaderDOM.appendChild(this.gatewayDOM);
+      this.gatewayDOM = this.createGateway();
       this.userHeaderDOM.appendChild(this.bannerDOM);
       this.commentDOM.setAttribute(A_User, true);
+    }
+    locateToolbar() {
+      //// 定位评论工具栏
+      let toolbarDOM = this.commentDOM.querySelector(QS_ToolbarDOM);
+      return toolbarDOM;
+    }
+    locateUserHeader() {
+      //// 定位用户行，确定评论类型
+      let userHeaderDOM = this.commentDOM.querySelector(QS_MainCommentUserHeader);
+      this.commentType = TComment.MainComment
+      if (!userHeaderDOM) {
+        userHeaderDOM = this.commentDOM.querySelector(QS_ReplyUserHeader);
+        this.commentType = TComment.ReplyComment;
+      }
+      return userHeaderDOM;
+    }
+    createGateway() {
+      //// 修饰查成分入口
+      let gatewayDOM = document.createElement("a");
+      gatewayDOM.classList.add(CLASS_Gateway);
+      gatewayDOM.innerHTML = "开门！查成分！";
+      gatewayDOM.onclick = this.getForwards.bind(this);
+
+      // "up主觉得很赞"是div block,移动顺序
+      let upiineDOM = null;
+      if (!!this.toolbarDOM.lastChild && this.toolbarDOM.lastChild.classList.contains(CLASS_UPiine)) {
+        upiineDOM = this.toolbarDOM.lastChild;
+        this.toolbarDOM.removeChild(upiineDOM);
+      }
+      this.toolbarDOM.appendChild(gatewayDOM);
+      if (!!upiineDOM) {
+        this.toolbarDOM.appendChild(upiineDOM);
+      }
+
+      return gatewayDOM;
     }
     renderBanner() {
       //// 渲染成分条
 
+      // 统计并修饰入口链接
       let no = -1, total = 0;
       for (let i in this.forwardCounter) {
         total += this.forwardCounter[i].count;
