@@ -187,7 +187,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
         statDOM.classList.add(CLASS_StatDOM);
         statDOM.style.backgroundColor = pallete[no];
         statDOM.style.width = `${Math.floor(this.forwardCounter[key].count / total * 100)}%`;  // 宽度与数量成比例
-        statDOM.innerHTML = `<a href='//space.bilibili.com/${key}'>${this.forwardCounter[key].name}</a>(${this.forwardCounter[key].count}, ${statDOM.style.width})`;
+        statDOM.innerHTML = `<a target="_blank" href='//space.bilibili.com/${key}'>${this.forwardCounter[key].name}</a>(${this.forwardCounter[key].count}, ${statDOM.style.width})`;
         statDOM.onmouseover = () => {
           if (this.statDOMs.length > 1)
             statDOM.style.width = `max(calc(${Math.floor(this.forwardCounter[key].count / total * 100)}%), calc(${statDOM.innerText.length + 2}em))`;  // 显示所有的字，为数字和半角括号增加冗余空间
