@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name        FBI Open the door! B站评论区用户转发动态统计
 // @namespace   lightyears.im
-// @version     0.3
+// @version     0.4
 // @description 统计B站评论区内用户转发动态的情况，按照原动态UP主分类。
 // @author      1MLightyears
 // @match       *://www.bilibili.com/video/*
+// @match       *://www.bilibili.com/read/*
 // @match       *://t.bilibili.com/*
 // @match       *://space.bilibili.com/*
 // @icon        https://static.hdslb.com/images/favicon.ico
@@ -196,10 +197,16 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
           statDOM.style.width = `${Math.floor(this.forwardCounter[key].count / total * 100)}%`;  // 宽度与数量成比例
         }
 
-        this.statDOMs.push(statDOM);
-        this.bannerDOM.appendChild(statDOM);
-      }
+        statDOM._FO_count = this.forwardCounter[key].count;  // 排序用
 
+        this.statDOMs.push(statDOM);
+      }
+      this.statDOMs.sort((a, b) => {
+        return b._FO_count - a._FO_count;
+      });
+      for (let i = 0; i < this.statDOMs.length; i++) {
+        this.bannerDOM.appendChild(this.statDOMs[i]);
+      }
       this.bannerDOM.className = CLASS_BannerDOM;
     }
     fetchHomepage() {
