@@ -25,19 +25,34 @@ GitHub: https://github.com/1MLightyears/FBIOpenTheDoor
 (function () {
   "use strict";
 
+  const bilibiliVersion = document.body.classList.contains("harmony-font");
   const CLASS_BannerDOM = "FO-banner";  // 成分条class
   const CLASS_StatDOM = "FO-stat";  // 成分条里每个成分的class
   const CLASS_Gateway = "FO-gateway";  // 入口的class
   const CLASS_UPiine = "reply-tags";  // "up主觉得很赞"的class
-  const A_Uid = "data-usercard-mid";  // 用户Uid属性
   const A_User = "FO-user"  // 已经标注查成分的用户
-  const QS_MainCommentUserHeader = "div.con > div.user";  // 评论的用户行DOM
-  const QS_ReplyUserHeader = "div.reply-con > div.user";  // 楼中楼用户行DOM
-  const QS_Uid = "a.name";  // 用户名DOM
-  const QS_NewUser = `div.reply-wrap:not([${A_User}])`;  // 新刷出来的用户DOM
-  const QS_ToolbarDOM = `div.info`;  // 评论下赞、踩、回复工具栏DOM
+  const QS_BannerInsertBefore_new = "div.root-reply, div.sub-reply-info";
+  let A_Uid, QS_MainCommentUserHeader, QS_ReplyUserHeader, QS_Uid, QS_NewUser, QS_ToolbarDOM;
+  if (bilibiliVersion) {
+    // 新版
+    QS_MainCommentUserHeader = "div.root-reply-container div.user-info";  // 评论的用户行DOM
+    QS_ReplyUserHeader = "div.sub-reply-item > div.sub-user-info";  // 楼中楼用户行DOM
+    QS_Uid = "div[data-user-id]";  // 用户名DOM
+    QS_NewUser = `div.reply-item:not([${A_User}]), div.sub-reply-item:not([${A_User}])`;  // 新刷出来的用户DOM
+    QS_ToolbarDOM = `div.reply-info, div.sub-reply-info`;  // 评论下赞、踩、回复工具栏DOM
+    A_Uid = "data-user-id";  // 用户Uid属性
+  } else {
+    // 旧版
+    QS_MainCommentUserHeader = "div.con > div.user";  // 评论的用户行DOM
+    QS_ReplyUserHeader = "div.reply-con > div.user";  // 楼中楼用户行DOM
+    QS_Uid = "a.name";  // 用户名DOM
+    QS_NewUser = `div.reply-wrap:not([${A_User}])`;  // 新刷出来的用户DOM
+    QS_ToolbarDOM = `div.info`;  // 评论下赞、踩、回复工具栏DOM
+    A_Uid = "data-usercard-mid";  // 用户Uid属性
+  }
 
-  const CSSSheet = `
+
+  let CSSSheet = `
 span.${CLASS_StatDOM} {
   text-align: center;
   align-self: center;
@@ -56,19 +71,45 @@ span.${CLASS_StatDOM}:hover a{
   text-decoration: underline;
 }
 
-span.${CLASS_BannerDOM} {
+div.${CLASS_BannerDOM} {
   display: flex;
   border-radius: 10px;
   overflow:hidden;
   z-index: 128;
 }
 
-span.${CLASS_BannerDOM} a {
+div.${CLASS_BannerDOM} a {
   color: black;
   padding-bottom: 0px;
   font-weight: 300;
 }
+`;
+  // 为不同版本适配不同的CSS样式
+  if (bilibiliVersion) {
+    // 新版
+    CSSSheet += `
+a.${CLASS_Gateway} {
+  display: none;
+  color: grey;
+  position: inherit;
+  z-index: 128;
+  font-weight: 700;
+  margin-left: 2em;
+}
 
+div.root-reply-container:hover a.${CLASS_Gateway},
+div.sub-reply-item:hover a.${CLASS_Gateway} {
+  display: inline;
+}
+
+/* 干掉挡事的认证粉丝牌 */
+.reply-decorate:hover {
+  display: none;
+}
+`;
+  } else {
+    // 旧版
+    CSSSheet += `
 a.${CLASS_Gateway} {
   display: none;
   color: grey;
@@ -85,8 +126,8 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
 /* 干掉挡事的认证粉丝牌 */
 .sailing:hover {
   display: none;
-}
-`
+}`;
+  }
 
   // 颜色盘
   const pallete = [
@@ -121,12 +162,19 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
       this.uid = userADOM.getAttribute(A_Uid);
       this.name = userADOM.text;
       this.forwardCounter = {};
-      this.bannerDOM = document.createElement("span");
+      this.bannerDOM = document.createElement("div");
       this.statDOMs = [];
       this.offset = null;
 
       this.gatewayDOM = this.createGateway();
-      this.userHeaderDOM.appendChild(this.bannerDOM);
+      if (bilibiliVersion) {
+        // 新版
+        let parentDOM = this.userHeaderDOM.parentNode;
+        parentDOM.insertBefore(this.bannerDOM, parentDOM.querySelector(QS_BannerInsertBefore_new));
+      } else {
+        // 旧版
+        this.userHeaderDOM.appendChild(this.bannerDOM);
+      }
       this.commentDOM.setAttribute(A_User, true);
     }
     locateToolbar() {
@@ -179,31 +227,37 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
         this.gatewayDOM.onclick = null;
       }
       this.bannerDOM.innerHTML = "";
+
+      // 构建内部成分表
       this.statDOMs = [];
       for (let key in this.forwardCounter) {
-        no = no + 1 < pallete.length ? no + 1 : 0;
 
-        // 构建成分条中的一个成分，转发的同一up数量越多，该成分越长
         let statDOM = document.createElement("span");
-        statDOM.classList.add(CLASS_StatDOM);
-        statDOM.style.backgroundColor = pallete[no];
-        statDOM.style.width = `${Math.floor(this.forwardCounter[key].count / total * 100)}%`;  // 宽度与数量成比例
-        statDOM.innerHTML = `<a target="_blank" href='//space.bilibili.com/${key}'>${this.forwardCounter[key].name}</a>(${this.forwardCounter[key].count}, ${statDOM.style.width})`;
-        statDOM.onmouseover = () => {
-          if (this.statDOMs.length > 1)
-            statDOM.style.width = `max(calc(${Math.floor(this.forwardCounter[key].count / total * 100)}%), calc(${statDOM.innerText.length + 2}em))`;  // 显示所有的字，为数字和半角括号增加冗余空间
-        }
-        statDOM.onmouseleave = () => {
-          statDOM.style.width = `${Math.floor(this.forwardCounter[key].count / total * 100)}%`;  // 宽度与数量成比例
-        }
-
-        statDOM._FO_count = this.forwardCounter[key].count;  // 排序用
-
+        statDOM.stat_data = this.forwardCounter[key];  // 排序用
         this.statDOMs.push(statDOM);
       }
       this.statDOMs.sort((a, b) => {
-        return b._FO_count - a._FO_count;
+        return b.stat_data.count - a.stat_data.count;
       });
+
+      for (let i = 0; i < this.statDOMs.length; i++) {
+        no = no + 1 < pallete.length ? no + 1 : 0;
+
+        // 修饰每个成分
+        let statDOM = this.statDOMs[i], percent = statDOM.stat_data.count / total * 100;
+        statDOM.classList.add(CLASS_StatDOM);
+        statDOM.style.backgroundColor = pallete[no];
+        statDOM.style.width = `${percent}%`;  // 宽度与数量成比例
+        statDOM.innerHTML = `<a target="_blank" href='//space.bilibili.com/${statDOM.stat_data.uid}'>${statDOM.stat_data.name}</a>(${statDOM.stat_data.count}, ${Math.floor(percent)}%)`;
+        statDOM.onmouseover = () => {
+          if (this.statDOMs.length > 1)
+            statDOM.style.width = `max(calc(${percent}%), calc(${statDOM.innerText.length + 2}em))`;  // 显示所有的字，为数字和半角括号增加冗余空间
+        }
+        statDOM.onmouseleave = () => {
+          statDOM.style.width = `${percent}%`;  // 宽度与数量成比例
+        }
+      }
+
       for (let i = 0; i < this.statDOMs.length; i++) {
         this.bannerDOM.appendChild(this.statDOMs[i]);
       }
