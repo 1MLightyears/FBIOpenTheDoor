@@ -24,12 +24,21 @@ GitHub: https://github.com/1MLightyears/FBIOpenTheDoor
 
 (function () {
   "use strict";
+  function genUuid() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+      var r = (Math.random() * 16) | 0,
+        v = c == 'x' ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  }
 
   const bilibiliVersion = document.body.classList.contains("harmony-font");
+  const customCollections = JSON.parse(window.localStorage.getItem("FBIOpenTheDoor").collections || "{'collections':[]}");
   const CLASS_BannerDOM = "FO-banner";  // 成分条class
   const CLASS_StatDOM = "FO-stat";  // 成分条里每个成分的class
   const CLASS_Gateway = "FO-gateway";  // 入口的class
   const CLASS_UPiine = "reply-tags";  // "up主觉得很赞"的class
+  const CLASS_CollectionStatDOM = "FO-colle-stat";  // 用户定义集的class
   const A_User = "FO-user"  // 已经标注查成分的用户
   const QS_BannerInsertBefore_new = "div.root-reply, div.sub-reply-info";
   let A_Uid, QS_MainCommentUserHeader, QS_ReplyUserHeader, QS_Uid, QS_NewUser, QS_ToolbarDOM;
@@ -56,7 +65,7 @@ GitHub: https://github.com/1MLightyears/FBIOpenTheDoor
 span.${CLASS_StatDOM} {
   text-align: center;
   align-self: center;
-  border: 2px solid white;
+  margin: 2px;
   height: calc(2em);
   text-overflow: ellipsis;
   overflow: hidden;
@@ -76,6 +85,7 @@ div.${CLASS_BannerDOM} {
   border-radius: 10px;
   overflow:hidden;
   z-index: 128;
+  padding: 3px;
 }
 
 div.${CLASS_BannerDOM} a {
@@ -149,8 +159,15 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
   const TComment = {
     MainComment: 0,  // 评论区评论
     ReplyComment: 1,  // 评论区回复楼中楼评论
-  }
-  class bilibiliUser {
+  };
+
+  // 成分条类型
+  const TStat = {
+    Collection: 0,
+    Statistic: 1,
+  };
+
+  class TBilibiliUser {
     //// 评论用户类
     constructor(commentDOM) {
       //// 初始化用户类
@@ -165,6 +182,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
       this.bannerDOM = document.createElement("div");
       this.statDOMs = [];
       this.offset = null;
+      this.total = 0;
 
       this.gatewayDOM = this.createGateway();
       if (bilibiliVersion) {
@@ -212,15 +230,80 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
 
       return gatewayDOM;
     }
+    createCollection() {
+      let newCollection = {
+        "uid": genUuid(),
+        "name": `新集合`,
+        "components": []
+      };
+      this.collections[newCollection.uid] = newCollection;
+      window.localStorage.setItem(this.collections);
+      return newCollection;
+    }
+    renderStat(key, colorNo) {
+      //// 渲染一种成分: 是一个用户自定义组，或是成分条
+      let statDOM = document.createElement("span");
+      statDOM.stat_data = this.forwardCounter[key];  // 排序用
+      let percent = statDOM.stat_data.count / this.total * 100;
+      this.statDOMs.push(statDOM);
+
+      // 修饰每个成分
+      statDOM.classList.add(CLASS_StatDOM);
+      statDOM.style.backgroundColor = pallete[colorNo];
+      statDOM.style.width = `${percent}%`;  // 宽度与数量成比例
+      if (this.isCollection(key)) {
+
+      } else {
+        statDOM.setAttribute("draggable", "true");
+      }
+
+      let innerDetailDOM = document.createElement("a");
+      innerDetailDOM.setAttribute("target", "_blank");
+      innerDetailDOM.setAttribute("href", `//space.bilibili.com/${statDOM.stat_data.uid}`);
+      innerDetailDOM.innerText = statDOM.stat_data.name;
+      statDOM.appendChild(innerDetailDOM);
+      statDOM.innerHTML += `(${statDOM.stat_data.count}, ${Math.floor(percent)}%)`;
+
+      statDOM.onmouseover = () => {
+        if (this.statDOMs.length > 1)
+          statDOM.style.width = `max(calc(${percent}%), calc(${statDOM.innerText.length + 2}em))`;  // 显示所有的字，为数字和半角括号增加冗余空间
+      };
+      statDOM.onmouseleave = () => {
+        statDOM.style.width = `${percent}%`;  // 宽度与数量成比例
+      };
+      statDOM.ondragenter = () => {
+        statDOM.style.boxShadow = "0px 0px 1em grey";
+      };
+      statDOM.ondragleave = () => {
+        statDOM.style.boxShadow = "";
+      };
+      statDOM.ondragend = (e) => {
+        console.log(e);  // DEBUG
+        let originalStatDOM = e.target;
+        while (!originalStatDOM instanceof HTMLSpanElement) originalStatDOM = originalStatDOM.parentNode;
+        let targetCollection = customCollection[statDOM.stat_data.uid] || this.createCollection();
+        if (!statDOM.isCollection) {
+          // 新建一个集合
+          targetCollection.components.push(statDOM.stat_data.uid);
+        }
+        targetCollection.components.push(originalStatDOM.stat_data.uid);
+        this.renderBanner();
+      };
+      innerDetailDOM.ondragend = statDOM.ondragend;
+    }
+    renderCollection(key, colorNo) {
+      //// 渲染一个用户自定义集 // TODO
+    }
     renderBanner() {
       //// 渲染成分条
 
       // 统计并修饰入口链接
-      let no = -1, total = 0;
+      let colorNo = -1;
+      this.total = 0;
       for (let i in this.forwardCounter) {
-        total += this.forwardCounter[i].count;
+        this.total += this.forwardCounter[i].count;
       }
-      this.gatewayDOM.text = `(已查询到${total}条) `;
+      this.gatewayDOM.text = `(已查询到${this.total}条) `;
       if (this.has_more) {
         this.gatewayDOM.text += "继续查！";
       } else {
@@ -231,32 +314,17 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
       // 构建内部成分表
       this.statDOMs = [];
       for (let key in this.forwardCounter) {
+        colorNo = colorNo + 1 < pallete.length ? colorNo + 1 : 0;
 
-        let statDOM = document.createElement("span");
-        statDOM.stat_data = this.forwardCounter[key];  // 排序用
-        this.statDOMs.push(statDOM);
+        if (/* TODO 在localstorage里检查这个key是否在一个自定义集里 */) {
+          this.renderCollection(key, colorNo);
+        } else {
+          this.renderStat(key, colorNo);
+        }
       }
       this.statDOMs.sort((a, b) => {
         return b.stat_data.count - a.stat_data.count;
       });
-
-      for (let i = 0; i < this.statDOMs.length; i++) {
-        no = no + 1 < pallete.length ? no + 1 : 0;
-
-        // 修饰每个成分
-        let statDOM = this.statDOMs[i], percent = statDOM.stat_data.count / total * 100;
-        statDOM.classList.add(CLASS_StatDOM);
-        statDOM.style.backgroundColor = pallete[no];
-        statDOM.style.width = `${percent}%`;  // 宽度与数量成比例
-        statDOM.innerHTML = `<a target="_blank" href='//space.bilibili.com/${statDOM.stat_data.uid}'>${statDOM.stat_data.name}</a>(${statDOM.stat_data.count}, ${Math.floor(percent)}%)`;
-        statDOM.onmouseover = () => {
-          if (this.statDOMs.length > 1)
-            statDOM.style.width = `max(calc(${percent}%), calc(${statDOM.innerText.length + 2}em))`;  // 显示所有的字，为数字和半角括号增加冗余空间
-        }
-        statDOM.onmouseleave = () => {
-          statDOM.style.width = `${percent}%`;  // 宽度与数量成比例
-        }
-      }
 
       for (let i = 0; i < this.statDOMs.length; i++) {
         this.bannerDOM.appendChild(this.statDOMs[i]);
@@ -292,7 +360,8 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
                   this.forwardCounter[originalUpUid] = {
                     "name": item.orig.modules.module_author.name,
                     "uid": item.orig.modules.module_author.mid,
-                    "count": 1
+                    "count": 1,
+                    "stat_type": TStat.Statistic
                   }
                 }
               }
@@ -306,6 +375,9 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
         }.bind(this)
       })
     }
+    isCollection(key) {
+      return customCollections.contains(key);
+    }
   }
 
   // main
@@ -316,7 +388,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
   setInterval(() => {
     let newUsersDOM = document.querySelectorAll(QS_NewUser);
     for (let i = 0; i < newUsersDOM.length; i++) {
-      users.push(new bilibiliUser(newUsersDOM[i]));
+      users.push(new TBilibiliUser(newUsersDOM[i]));
     }
   }, 5000);
   console.log(`开门！查成分！`);
