@@ -25,20 +25,15 @@ GitHub: https://github.com/1MLightyears/FBIOpenTheDoor
 
 (function () {
   "use strict";
-  function genUuid() {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-      var r = (Math.random() * 16) | 0,
-        v = c == 'x' ? r : (r & 0x3) | 0x8;
-      return v.toString(16);
-    });
-  }
 
+  window.localStorage.setItem("FBIOpenTheDoor", "");  // DEBUG
   const bilibiliVersion = document.body.classList.contains("harmony-font");
   const CLASS_BannerDOM = "FO-banner";  // 成分条class
   const CLASS_StatDOM = "FO-stat";  // 成分条里每个成分的class
   const CLASS_Gateway = "FO-gateway";  // 入口的class
+  const CLASS_ColleDOM = "FO-colle";  // 自定义集的class
+  const CLASS_SubDOM = "FO-sub-stat";  // 自定义集中组分的class
   const CLASS_UPiine = "reply-tags";  // "up主觉得很赞"的class
-  const CLASS_CollectionDOM = "FO-colle";  // 用户定义集的class
   const A_User = "FO-user"  // 已经标注查成分的用户
   const QS_BannerInsertBefore_new = "div.root-reply, div.sub-reply-info";
   const localStorageKey = "FBIOpenTheDoor";
@@ -170,12 +165,6 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
     ReplyComment: 1,  // 评论区回复楼中楼评论
   };
 
-  // 成分条类型
-  const TStat = {
-    Collection: 0,
-    Statistic: 1,
-  };
-
   // 初始化成分条反查自定义集cid
   let collectionOfStat = {};
   for (let c in customCollections) {
@@ -183,6 +172,156 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
       collectionOfStat[customCollections[c].contains[i]] = c;
     }
   }
+
+  // dataTransfer不能存取对象?
+  let _dragDOM = null;
+
+  function genUuid() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+      var r = (Math.random() * 16) | 0,
+        v = c == 'x' ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  }
+
+  function saveCollection() {
+    //// 保存自定义集设定至localStorage
+    // TODO
+  }
+  function createCollection() {
+    //// 新建一个自定义集并记录
+    // TODO
+  }
+
+  function add2Collection(collection, stat) {
+    ///// 将一个成分编入一个自定义集
+    // TODO
+  }
+
+  class TDispDOM extends HTMLSpanElement {
+    //// banner中的显示条类
+    constructor(id, name, count, stat_type, parent_banner) {
+      super();
+      this._id = id || genUuid();
+      this._name = name || "新集合";
+      this._count = count || 0;
+      this._stat_type = stat_type || TDispDOM.DispType.Statistic;
+      this._contains = [];
+      this._parent_banner = parent_banner;
+      this.render();
+    }
+    setName(new_name) {
+      this._name = new_name.toString();
+      if (this.children.length && this.childNodes[0].nodeType === 3) {
+        // 仅修改文本
+        this.childNodes[0].nodeValue = this._name;
+      } else {
+        this.innerHTML = this._name + this.innerHTML;
+      }
+    }
+    getName() {
+      if (this.children.length && this.childNodes[0].nodeType === 3) {
+        return this.childNodes[0].nodeValue;
+      } else {
+        return this.innerText;
+      }
+    }
+    appendChild(DispDOM) {
+      if (!DispDOM instanceof TDispDOM) {
+        super.appendChild(DispDOM);
+        console.warn(`FO DOM < ${this._name} >(${this._id})被侵入`);
+      } else {
+        let subDOM = document.createElement("span");
+        subDOM._id = DispDOM._id;
+        subDOM._name = DispDOM._name;
+        subDOM._count = DispDOM._count;
+        let percent = subDOM._count / this.total * 100;
+
+        subDOM.classList.add(CLASS_SubDOM);
+
+        let innerDetailDOM = document.createElement("a");
+        innerDetailDOM.setAttribute("target", "_blank");
+        innerDetailDOM.setAttribute("href", `//space.bilibili.com/${subDOM.stat_data.uid}`);
+        innerDetailDOM.innerText = subDOM.stat_data.name;
+        subDOM.appendChild(innerDetailDOM);
+        subDOM.innerHTML += `(${subDOM.stat_data.count}, ${Math.floor(percent)}%)`;
+
+        super.appendChild(subDOM);
+      }
+    }
+    render(percent) {
+      //// 渲染
+
+      // common
+      this.style.width = `${percent}%`;  // 宽度与数量成比例
+      this.onmouseover = () => {
+        if (percent < 99)
+          this.style.width = `max(calc(${percent}%), calc(${this.getName().length + 2}em))`;  // 显示所有的字，为数字和半角括号增加冗余空间
+      };
+      this.onmouseleave = () => {
+        this.style.width = `${percent}%`;
+      };
+      this.ondragover = (e) => {
+        e.preventDefault();
+      }
+      this.ondragenter = (e) => {
+        console.log(`进`, e.target);
+        this.style.boxShadow = "0px 0px 0.5em grey";
+      };
+      this.ondragleave = (e) => {
+        console.log(`出`, e.target);
+        this.style.boxShadow = "";
+      };
+
+      // 修饰每个成分,根据类型
+      switch (this._stat_type) {
+        case TDispDOM.DispType.Statistic:
+          // 成分条
+          this.classList.add(CLASS_StatDOM);
+          this.setAttribute("draggable", "true");
+
+          // up主链接
+          let innerDetailDOM = document.createElement("a");
+          innerDetailDOM.setAttribute("target", "_blank");
+          innerDetailDOM.setAttribute("href", `//space.bilibili.com/${this._id}`);
+          innerDetailDOM.innerText = this._name;
+          super.appendChild(innerDetailDOM);
+          this.innerHTML += `(${this._count}, ${Math.floor(percent)}%)`;
+
+          this.ondragstart = (e) => {
+            console.log("起", e.target);
+            _dragDOM = this;
+          }
+          this.ondrop = (e) => {
+            this.ondragleave(e);
+            console.log("落", e);  // DEBUG
+            let sourceDOM = _dragDOM;
+            while (!sourceDOM instanceof TDispDOM) sourceDOM = sourceDOM.parentNode;
+            let targetCollection = createCollection();
+            this.add2Collection(targetCollection, this._id);
+            this.add2Collection(targetCollection, sourceDOM._id);
+            if (this._parent_banner) {
+              this._parent_banner.render();
+            }
+          };
+          innerDetailDOM.ondragend = (e) => this.ondragend(e);
+          innerDetailDOM.ondragenter = (e) => this.ondragenter(e);
+          innerDetailDOM.ondragleave = (e) => this.ondragleave(e);
+          break;
+        case TDispDOM.DispType.Collection:
+          // 渲染自定义集
+          this.classList.add(CLASS_ColleDOM);
+          this.setName(`${this._name}(${this._count}, ${Math.floor(percent)}%)`);
+          // TODO 渲染子成分,绑定拖动终点事件
+          break;
+      }
+
+    }
+  }
+  TDispDOM.DispType = {
+    Collection: 0,
+    Statistic: 1,
+  };
 
   class TBilibiliUser {
     //// 评论用户类
@@ -202,10 +341,6 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
       this.offset = null;
       this.total = 0;
 
-      for (let c in customCollections) {
-        // 永远将所有的自定义集都创好DOM，但不一定加到DOM树上
-        this.renderCollection(c);
-      }
       this.gatewayDOM = this.createGateway();
       if (bilibiliVersion) {
         // 新版
@@ -252,107 +387,10 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
 
       return gatewayDOM;
     }
-    createCollection() {
-      //// 创建一个新的自定义集并记录
-      let newCollection = {
-        "cid": genUuid(),
-        "name": `新集合`,
-        "contains": []
-      };
-      customCollections[newCollection.cid] = newCollection;
-      this.renderCollection(newCollection.cid);
-      this.saveCollections();
-      return newCollection;
-    }
-    saveCollections() {
-      window.localStorage.setItem(localStorageKey, JSON.stringify({
-        "collections": customCollections,
-      }));
-      for (let c in customCollections) {
-        for (let i = 0, l = customCollections[c].contains.length; i < l; i++) {
-          collectionOfStat[customCollections[c].contains[i]] = c;
-        }
-      }
-    }
-    addToCollection(statDOM) {
-      //// 将一个成分条计入某个自定义集
-      let uid = statDOM.stat_data.uid, cid = collectionOfStat[uid];
-      customCollections[cid].contains.push(statDOM.stat_data.uid);
-      this.renderBanner();
-      // TODO: 异步刷当前页面上所有的banner
-      return cid;
-    }
-    renderStat(key, colorNo) {
-      //// 渲染一种成分
-      let statDOM = document.createElement("span");
-      statDOM.stat_data = this.forwardCounter[key];  // 排序用
-      let percent = statDOM.stat_data.count / this.total * 100;
-      this.statDOMs.push(statDOM);
-
-      // 修饰每个成分
-      statDOM.classList.add(CLASS_StatDOM);
-      statDOM.style.backgroundColor = pallete[colorNo];
-      statDOM.style.width = `${percent}%`;  // 宽度与数量成比例
-      statDOM.setAttribute("draggable", "true");
-
-      // up主链接
-      let innerDetailDOM = document.createElement("a");
-      innerDetailDOM.setAttribute("target", "_blank");
-      innerDetailDOM.setAttribute("href", `//space.bilibili.com/${statDOM.stat_data.uid}`);
-      innerDetailDOM.innerText = statDOM.stat_data.name;
-      statDOM.appendChild(innerDetailDOM);
-      statDOM.innerHTML += `(${statDOM.stat_data.count}, ${Math.floor(percent)}%)`;
-
-      statDOM.onmouseover = () => {
-        if (this.statDOMs.length > 1)
-          statDOM.style.width = `max(calc(${percent}%), calc(${statDOM.innerText.length + 2}em))`;  // 显示所有的字，为数字和半角括号增加冗余空间
-      };
-      statDOM.onmouseleave = () => {
-        statDOM.style.width = `${percent}%`;  // 宽度与数量成比例
-      };
-      statDOM.ondragenter = (e) => {
-        console.log(`进`, e.target);
-        statDOM.style.boxShadow = "0px 0px 0.5em grey";
-      };
-      statDOM.ondragover = (e) => {
-        e.preventDefault();
-      }
-      statDOM.ondragleave = (e) => {
-        console.log(`出`, e.target);
-        statDOM.style.boxShadow = "";
-      };
-      statDOM.ondrop = (e) => {
-        statDOM.ondragleave(e);
-        console.log("落", e);  // DEBUG
-        let originalStatDOM = e.target;
-        while (!originalStatDOM instanceof HTMLSpanElement) originalStatDOM = originalStatDOM.parentNode;
-        let targetCollection = this.createCollection();
-        targetCollection.contains.push(statDOM.stat_data.uid);
-        targetCollection.contains.push(originalStatDOM.stat_data.uid);
-        this.saveCollections();
-        this.renderBanner();
-      };
-      innerDetailDOM.ondragend = (e) => statDOM.ondragend(e);
-      innerDetailDOM.ondragenter = (e) => statDOM.ondragenter(e);
-      innerDetailDOM.ondragleave = (e) => statDOM.ondragleave(e);
-    }
-    renderCollection(cid) {
-      //// 渲染一个用户自定义集
-      let collectionDOM = document.createElement("span"), name = customCollections[cid].name;
-      collectionDOM.stat_data = {
-        "name": name,
-        "cid": cid,
-        "count": 0,
-        "stat_type": TStat.Collection
-      };
-      this.collectionDOMs[cid] = collectionDOM;
-      this.cSetCount(collectionDOM, 0);
-    }
-    renderBanner() {
+    render() {
       //// 渲染成分条
 
       // 统计并修饰入口链接
-      let colorNo = -1;
       this.total = 0;
       for (let i in this.forwardCounter) {
         this.total += this.forwardCounter[i].count;
@@ -368,30 +406,25 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
       // 构建内部成分表 先渲染所有的成分条
       this.statDOMs = [];
       for (let key in this.forwardCounter) {
-        colorNo = colorNo + 1 < pallete.length ? colorNo + 1 : 0;
-        this.renderStat(key, colorNo);
+        let curr = this.forwardCounter[key];
+        this.statDOMs.push(new TDispDOM(
+          curr.uid || curr.cid,
+          curr.name,
+          curr.count,
+          curr.stat_type,
+          this
+        ));
       }
 
-      // 再检查每个成分条 若属于一个自定义集则将该条移至成分集下
-      for (let i = 0, l = this.statDOMs.length; i < l; i++) {
-        if (collectionOfStat.hasOwnProperty(this.statDOMs[i].stat_data.uid)) {
-          let cid = collectionOfStat[this.statDOMs[i].stat_data.uid],
-            collectionDOM = this.collectionDOMs[cid],
-            statDOM = this.statDOMs[i];
-          if (collectionDOM.childNodes.length < 2) {  // 有#text
-            this.statDOMs.push(collectionDOM);
-          }
-          collectionDOM.appendChild(statDOM);
-          this.cSetCount(collectionDOM, collectionDOM.stat_data.count + statDOM.stat_data.count);
-        }
-      }
-
-      // 刷新banner 数量较大的成分优先
+      // 显示statDOMs，刷新banner 数量较大的成分优先
       this.statDOMs.sort((a, b) => {
         return b.stat_data.count - a.stat_data.count;
       });
+      let colorNo = -1;
       for (let i = 0; i < this.statDOMs.length; i++) {
+        colorNo = colorNo + 1 < pallete.length ? colorNo + 1 : 0;
         this.bannerDOM.appendChild(this.statDOMs[i]);
+        this.statDOMs[i].style.backgroundColor = pallete[colorNo];
       }
       this.bannerDOM.className = CLASS_BannerDOM;
     }
@@ -425,62 +458,40 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
                     "name": item.orig.modules.module_author.name,
                     "uid": item.orig.modules.module_author.mid,
                     "count": 1,
-                    "stat_type": TStat.Statistic
+                    "stat_type": TDispDOM.DispType.Statistic
                   }
                 }
               }
             }
             this.offset = resp.data.offset;
             this.has_more = resp.data.has_more;
-            this.renderBanner();
+            this.collect();
+            this.render();
           } else {
             console.warn(`获取失败@uid=${this.uid}: status=${resp.status}`);
           }
         }.bind(this)
       })
     }
-    // 自定义集相关操作(不单独定义类了)
-    cSetCount(collectionDOM, count) {
-      collectionDOM.stat_data.count = count;
-      let percent = collectionDOM.stat_data.count / this.total * 100, name = collectionDOM.stat_data.name;
-
-      collectionDOM.style.width = `${percent}%`;  // 宽度与数量成比例
-      collectionDOM.innerHTML = `${name}(${collectionDOM.stat_data.count}, ${Math.floor(percent)}%)`;
-
-      // 修饰DOM 因为涉及到count的变化所以重绑
-      collectionDOM.classList.add(CLASS_CollectionDOM);
-      collectionDOM.style.width = `${percent}%`;  // 宽度与数量成比例
-
-      collectionDOM.innerHTML = `${name}(${collectionDOM.stat_data.count}, ${Math.floor(percent)}%)`;
-
-      collectionDOM.onmouseover = (e) => {
-        if (this.statDOMs.length > 1)
-          collectionDOM.style.width = `max(calc(${percent}%), calc(${collectionDOM.innerText.length + 2}em))`;  // 显示所有的字，为数字和半角括号增加冗余空间
-      };
-      collectionDOM.onmouseleave = () => {
-        collectionDOM.style.width = `${percent}%`;  // 宽度与数量成比例
-      };
-      collectionDOM.ondragenter = (e) => {
-        console.log(`进`, e.target);
-        collectionDOM.style.boxShadow = "0px 0px 0.5em grey";
-      };
-      collectionDOM.ondragover = (e) => {
-        e.preventDefault();
+    collect() {
+      //// 根据自定义集分组情况，修改统计结果forwardCounter
+      for (let key in this.forwardCounter) {
+        let curr = this.forwardCounter[key];
+        if (curr.stat_type === TDispDOM.DispType.Statistic &&
+          collectionOfStat.hasOwnProperty(curr.uid)) {
+          let cid = collectionOfStat[curr.uid];
+          let targetCollection = this.forwardCounter[cid] || {
+            "name": customCollections[cid].name,
+            "cid": cid,
+            "count": 0,
+            "contains": [],
+            "stat_type": TDispDOM.DispType.Collection
+          }
+          targetCollection.contains.push(curr);
+          targetCollection.count += curr.count;
+          delete this.forwardCounter[key];
+        }
       }
-      collectionDOM.ondragleave = (e) => {
-        console.log(`出`, e.target);
-        collectionDOM.style.boxShadow = "";
-      };
-      collectionDOM.ondrop = (e) => {
-        collectionDOM.ondragleave(e);
-        console.log("落", e);  // DEBUG
-        let originalStatDOM = e.target;
-        while (!originalStatDOM instanceof HTMLSpanElement) originalStatDOM = originalStatDOM.parentNode;
-        let targetCollection = this.createCollection();
-        targetCollection.contains.push(originalStatDOM.stat_data.uid);
-        this.saveCollections();
-        this.renderBanner();
-      };
     }
   }
 
