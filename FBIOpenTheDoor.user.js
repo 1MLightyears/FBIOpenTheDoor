@@ -166,10 +166,10 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
   };
 
   // 初始化成分条反查自定义集cid
-  let collectionOfStat = {};
+  let stat2Collection = {};
   for (let c in customCollections) {
     for (let i = 0, l = customCollections[c].contains.length; i < l; i++) {
-      collectionOfStat[customCollections[c].contains[i]] = c;
+      stat2Collection[customCollections[c].contains[i]] = c;
     }
   }
 
@@ -186,139 +186,150 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
 
   function saveCollection() {
     //// 保存自定义集设定至localStorage
-    // TODO
+    window.localStorage.setItem(localStorageKey, JSON.stringify(customCollections));
   }
   function createCollection() {
     //// 新建一个自定义集并记录
-    // TODO
-  }
-
-  function add2Collection(collection, stat) {
-    ///// 将一个成分编入一个自定义集
-    // TODO
-  }
-
-  class TDispDOM extends HTMLSpanElement {
-    //// banner中的显示条类
-    constructor(id, name, count, stat_type, parent_banner) {
-      super();
-      this._id = id || genUuid();
-      this._name = name || "新集合";
-      this._count = count || 0;
-      this._stat_type = stat_type || TDispDOM.DispType.Statistic;
-      this._contains = [];
-      this._parent_banner = parent_banner;
-      this.render();
+    let newCollection = {
+      "cid": genUuid(),
+      "name": "新集合",
+      "contains": [],
     }
-    setName(new_name) {
-      this._name = new_name.toString();
-      if (this.children.length && this.childNodes[0].nodeType === 3) {
+    customCollections[newCollection.cid] = newCollection;
+    saveCollection();
+    return newCollection;
+  }
+
+  function add2Collection(cid, uid) {
+    ///// 将一个成分条(uid)编入一个自定义集(cid)
+    let collection = customCollections[cid];
+    if (!collection.contains.include(uid)) {
+      collection.contains.push(uid);
+      stat2Collection[uid] = cid;
+    }
+    saveCollection();
+  }
+
+  class TDisp {
+    //// banner中的显示块类
+    constructor(id, name, count, stat_type, parent_banner) {
+      this.dom = document.createElement("span");
+      this.dom.disp_of = this;
+      this.id = id || genUuid();
+      this.name = name || "新集合";
+      this.count = count || 0;
+      this.stat_type = stat_type || TDisp.DispType.Statistic;
+      this.contains = [];
+      this.parent_banner = parent_banner;
+    }
+    setName(newname) {
+      this.name = newname.toString();
+      if (this.dom.children.length && this.dom.childNodes[0].nodeType === 3) {
         // 仅修改文本
-        this.childNodes[0].nodeValue = this._name;
+        this.dom.childNodes[0].nodeValue = this.name;
       } else {
-        this.innerHTML = this._name + this.innerHTML;
+        this.dom.innerHTML = this.name;
       }
+      return this;
     }
     getName() {
-      if (this.children.length && this.childNodes[0].nodeType === 3) {
-        return this.childNodes[0].nodeValue;
+      if (this.dom.children.length && this.dom.childNodes[0].nodeType === 3) {
+        return this.dom.childNodes[0].nodeValue;
       } else {
-        return this.innerText;
+        return this.dom.innerText;
       }
+      return this;
     }
     appendChild(DispDOM) {
-      if (!DispDOM instanceof TDispDOM) {
-        super.appendChild(DispDOM);
-        console.warn(`FO DOM < ${this._name} >(${this._id})被侵入`);
-      } else {
-        let subDOM = document.createElement("span");
-        subDOM._id = DispDOM._id;
-        subDOM._name = DispDOM._name;
-        subDOM._count = DispDOM._count;
-        let percent = subDOM._count / this.total * 100;
+      let subDOM = document.createElement("span");
+      subDOM._id = DispDOM.id;
+      subDOM._name = DispDOM.name;
+      subDOM._count = DispDOM.count;
+      let percent = subDOM._count / this.total * 100;
 
-        subDOM.classList.add(CLASS_SubDOM);
+      subDOM.classList.add(CLASS_SubDOM);
 
-        let innerDetailDOM = document.createElement("a");
-        innerDetailDOM.setAttribute("target", "_blank");
-        innerDetailDOM.setAttribute("href", `//space.bilibili.com/${subDOM.stat_data.uid}`);
-        innerDetailDOM.innerText = subDOM.stat_data.name;
-        subDOM.appendChild(innerDetailDOM);
-        subDOM.innerHTML += `(${subDOM.stat_data.count}, ${Math.floor(percent)}%)`;
+      let innerDetailDOM = document.createElement("a");
+      innerDetailDOM.setAttribute("target", "_blank");
+      innerDetailDOM.setAttribute("href", `//space.bilibili.com/${subDOM._id}`);
+      innerDetailDOM.innerText = subDOM._name;
+      subDOM.appendChild(innerDetailDOM);
+      subDOM.innerHTML += `(${subDOM._count}, ${Math.floor(percent)}%)`;
 
-        super.appendChild(subDOM);
-      }
+      this.dom.appendChild(subDOM);
+      return this;
     }
     render(percent) {
-      //// 渲染
+      //// 渲染显示块本身
 
       // common
-      this.style.width = `${percent}%`;  // 宽度与数量成比例
-      this.onmouseover = () => {
+      percent *= 100;
+      this.dom.style.width = `${percent}%`;  // 宽度与数量成比例
+      this.dom.onmouseover = () => {
         if (percent < 99)
-          this.style.width = `max(calc(${percent}%), calc(${this.getName().length + 2}em))`;  // 显示所有的字，为数字和半角括号增加冗余空间
+          this.dom.style.width = `max(calc(${percent}%), calc(${this.getName().length + 2}em))`;  // 显示所有的字，为数字和半角括号增加冗余空间
       };
-      this.onmouseleave = () => {
-        this.style.width = `${percent}%`;
+      this.dom.onmouseleave = () => {
+        this.dom.style.width = `${percent}%`;
       };
-      this.ondragover = (e) => {
+      this.dom.ondragover = (e) => {
         e.preventDefault();
       }
-      this.ondragenter = (e) => {
+      this.dom.ondragenter = (e) => {
         console.log(`进`, e.target);
-        this.style.boxShadow = "0px 0px 0.5em grey";
+        this.dom.style.boxShadow = "0px 0px 0.5em grey";
       };
-      this.ondragleave = (e) => {
+      this.dom.ondragleave = (e) => {
         console.log(`出`, e.target);
-        this.style.boxShadow = "";
+        this.dom.style.boxShadow = "";
       };
 
       // 修饰每个成分,根据类型
-      switch (this._stat_type) {
-        case TDispDOM.DispType.Statistic:
+      switch (this.stat_type) {
+        case TDisp.DispType.Statistic:
           // 成分条
-          this.classList.add(CLASS_StatDOM);
-          this.setAttribute("draggable", "true");
+          this.dom.classList.add(CLASS_StatDOM);
+          this.dom.setAttribute("draggable", "true");
 
           // up主链接
           let innerDetailDOM = document.createElement("a");
           innerDetailDOM.setAttribute("target", "_blank");
-          innerDetailDOM.setAttribute("href", `//space.bilibili.com/${this._id}`);
-          innerDetailDOM.innerText = this._name;
-          super.appendChild(innerDetailDOM);
-          this.innerHTML += `(${this._count}, ${Math.floor(percent)}%)`;
+          innerDetailDOM.setAttribute("href", `//space.bilibili.com/${this.id}`);
+          innerDetailDOM.innerText = this.name;
+          this.dom.appendChild(innerDetailDOM);
+          this.dom.innerHTML += `(${this.count}, ${Math.floor(percent)}%)`;
 
-          this.ondragstart = (e) => {
+          this.dom.ondragstart = (e) => {
             console.log("起", e.target);
             _dragDOM = this;
           }
-          this.ondrop = (e) => {
-            this.ondragleave(e);
+          this.dom.ondrop = (e) => {
+            this.dom.ondragleave(e);
             console.log("落", e);  // DEBUG
-            let sourceDOM = _dragDOM;
-            while (!sourceDOM instanceof TDispDOM) sourceDOM = sourceDOM.parentNode;
+            while (!(_dragDOM instanceof HTMLSpanElement && _dragDOM.hasOwnProperty("disp_of")))
+              _dragDOM = _dragDOM.parentNode;
             let targetCollection = createCollection();
-            this.add2Collection(targetCollection, this._id);
-            this.add2Collection(targetCollection, sourceDOM._id);
-            if (this._parent_banner) {
-              this._parent_banner.render();
+            add2Collection(targetCollection, this.id);
+            add2Collection(targetCollection, _dragDOM.disp_of.id);
+            if (this.parent_banner) {
+              this.parent_banner.render();
             }
           };
-          innerDetailDOM.ondragend = (e) => this.ondragend(e);
-          innerDetailDOM.ondragenter = (e) => this.ondragenter(e);
-          innerDetailDOM.ondragleave = (e) => this.ondragleave(e);
+          innerDetailDOM.ondragend = (e) => this.dom.ondragend(e);
+          innerDetailDOM.ondragenter = (e) => this.dom.ondragenter(e);
+          innerDetailDOM.ondragleave = (e) => this.dom.ondragleave(e);
           break;
-        case TDispDOM.DispType.Collection:
+        case TDisp.DispType.Collection:
           // 渲染自定义集
-          this.classList.add(CLASS_ColleDOM);
-          this.setName(`${this._name}(${this._count}, ${Math.floor(percent)}%)`);
+          this.dom.classList.add(CLASS_ColleDOM);
+          this.setName(`${this.name}(${this.count}, ${Math.floor(percent)}%)`);
           // TODO 渲染子成分,绑定拖动终点事件
           break;
       }
-
+      return this;
     }
   }
-  TDispDOM.DispType = {
+  TDisp.DispType = {
     Collection: 0,
     Statistic: 1,
   };
@@ -336,7 +347,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
       this.name = userADOM.text;
       this.forwardCounter = {};
       this.bannerDOM = document.createElement("div");
-      this.statDOMs = [];
+      this.statics = [];
       this.collectionDOMs = {};
       this.offset = null;
       this.total = 0;
@@ -388,7 +399,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
       return gatewayDOM;
     }
     render() {
-      //// 渲染成分条
+      //// 渲染banner
 
       // 统计并修饰入口链接
       this.total = 0;
@@ -404,27 +415,27 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
       this.bannerDOM.innerHTML = "";
 
       // 构建内部成分表 先渲染所有的成分条
-      this.statDOMs = [];
+      this.statics = [];
       for (let key in this.forwardCounter) {
         let curr = this.forwardCounter[key];
-        this.statDOMs.push(new TDispDOM(
+        this.statics.push(new TDisp(
           curr.uid || curr.cid,
           curr.name,
           curr.count,
           curr.stat_type,
           this
-        ));
+        ).render(curr.count / this.total));
       }
 
       // 显示statDOMs，刷新banner 数量较大的成分优先
-      this.statDOMs.sort((a, b) => {
-        return b.stat_data.count - a.stat_data.count;
+      this.statics.sort((a, b) => {
+        return b.count - a.count;
       });
       let colorNo = -1;
-      for (let i = 0; i < this.statDOMs.length; i++) {
+      for (let i = 0; i < this.statics.length; i++) {
         colorNo = colorNo + 1 < pallete.length ? colorNo + 1 : 0;
-        this.bannerDOM.appendChild(this.statDOMs[i]);
-        this.statDOMs[i].style.backgroundColor = pallete[colorNo];
+        this.bannerDOM.appendChild(this.statics[i].dom);
+        this.statics[i].dom.style.backgroundColor = pallete[colorNo];
       }
       this.bannerDOM.className = CLASS_BannerDOM;
     }
@@ -458,7 +469,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
                     "name": item.orig.modules.module_author.name,
                     "uid": item.orig.modules.module_author.mid,
                     "count": 1,
-                    "stat_type": TDispDOM.DispType.Statistic
+                    "stat_type": TDisp.DispType.Statistic
                   }
                 }
               }
@@ -477,18 +488,19 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
       //// 根据自定义集分组情况，修改统计结果forwardCounter
       for (let key in this.forwardCounter) {
         let curr = this.forwardCounter[key];
-        if (curr.stat_type === TDispDOM.DispType.Statistic &&
-          collectionOfStat.hasOwnProperty(curr.uid)) {
-          let cid = collectionOfStat[curr.uid];
+        if (curr.stat_type === TDisp.DispType.Statistic &&
+          stat2Collection.hasOwnProperty(curr.uid)) {
+          let cid = stat2Collection[curr.uid];
           let targetCollection = this.forwardCounter[cid] || {
             "name": customCollections[cid].name,
             "cid": cid,
             "count": 0,
             "contains": [],
-            "stat_type": TDispDOM.DispType.Collection
+            "stat_type": TDisp.DispType.Collection,
           }
           targetCollection.contains.push(curr);
           targetCollection.count += curr.count;
+          console.log(`<${curr.name}> 属于 <${targetCollection.name}> 自定义集`);
           delete this.forwardCounter[key];
         }
       }
