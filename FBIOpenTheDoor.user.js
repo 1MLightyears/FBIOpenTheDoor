@@ -67,7 +67,7 @@ GitHub: https://github.com/1MLightyears/FBIOpenTheDoor
 
 
   let CSSSheet = `
-span.${CLASS_StatDOM} {
+span.${CLASS_StatDOM}, span.${CLASS_ColleDOM} {
   text-align: center;
   align-self: center;
   margin: 2px;
@@ -77,7 +77,7 @@ span.${CLASS_StatDOM} {
   white-space: pre;
 }
 
-span.${CLASS_StatDOM}:hover {
+span.${CLASS_StatDOM}:hover, span.${CLASS_ColleDOM}:hover {
   z-index: 256;
 }
 
@@ -328,6 +328,13 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
           // 渲染自定义集
           this.dom.classList.add(CLASS_ColleDOM);
           this.setName(`${this.name}(${this.count}, ${Math.floor(percent)}%)`);
+          let renameInputDOM = document.createElement("input");
+          renameInputDOM.placeholder = this.name;
+          renameInputDOM.style.display = "none";
+          renameInputDOM.style.width = `${renameInputDOM.placeholder.length + 2}rem`;
+          this.dom.appendChild(renameInputDOM);
+          // TODO 渲染子成分,绑定拖动终点事件
+
           this.dom.ondrop = (e) => {
             this.dom.ondragleave(e);
             console.log("落", e);  // DEBUG
@@ -340,7 +347,17 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
               this.parent_banner.render();
             }
           };
-          // TODO 渲染子成分,绑定拖动终点事件
+          this.dom.ondblclick = (e) => {
+            this.setName("");
+            renameInputDOM.style.display = "inline-block";
+            renameInputDOM.onblur = (e) => {
+              this.name = renameInputDOM.value || renameInputDOM.placeholder;
+              customCollections[this.id].name = this.name;
+              this.setName(`${this.name}(${this.count}, ${Math.floor(percent)}%)`);
+              saveCollection();
+              renameInputDOM.style.display = "none";
+            }
+          }
           break;
       }
       return this;
