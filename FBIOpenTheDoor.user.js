@@ -26,7 +26,7 @@ GitHub: https://github.com/1MLightyears/FBIOpenTheDoor
 (function () {
   "use strict";
 
-  window.localStorage.setItem("FBIOpenTheDoor", "");  // DEBUG
+  //window.localStorage.setItem("FBIOpenTheDoor", "");  // DEBUG
   const bilibiliVersion = document.body.classList.contains("harmony-font");
   const CLASS_BannerDOM = "FO-banner";  // 成分条class
   const CLASS_StatDOM = "FO-stat";  // 成分条里每个成分的class
@@ -186,7 +186,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
 
   function saveCollection() {
     //// 保存自定义集设定至localStorage
-    window.localStorage.setItem(localStorageKey, JSON.stringify(customCollections));
+    window.localStorage.setItem(localStorageKey, JSON.stringify({ "collections": customCollections }));
   }
   function createCollection() {
     //// 新建一个自定义集并记录
@@ -203,7 +203,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
   function add2Collection(cid, uid) {
     ///// 将一个成分条(uid)编入一个自定义集(cid)
     let collection = customCollections[cid];
-    if (!collection.contains.include(uid)) {
+    if (!collection.contains.includes(uid)) {
       collection.contains.push(uid);
       stat2Collection[uid] = cid;
     }
@@ -219,7 +219,6 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
       this.name = name || "新集合";
       this.count = count || 0;
       this.stat_type = stat_type || TDisp.DispType.Statistic;
-      this.contains = [];
       this.parent_banner = parent_banner;
     }
     setName(newname) {
@@ -301,17 +300,23 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
 
           this.dom.ondragstart = (e) => {
             console.log("起", e.target);
-            _dragDOM = this;
+            _dragDOM = this.dom;
+            while (!(_dragDOM instanceof HTMLSpanElement && _dragDOM.hasOwnProperty("disp_of")))
+              _dragDOM = _dragDOM.parentNode;
           }
           this.dom.ondrop = (e) => {
             this.dom.ondragleave(e);
             console.log("落", e);  // DEBUG
             while (!(_dragDOM instanceof HTMLSpanElement && _dragDOM.hasOwnProperty("disp_of")))
               _dragDOM = _dragDOM.parentNode;
+            // 不处理自己落自己的情况
+            if (_dragDOM.disp_of.id === this.id) return;
+
             let targetCollection = createCollection();
-            add2Collection(targetCollection, this.id);
-            add2Collection(targetCollection, _dragDOM.disp_of.id);
+            add2Collection(targetCollection.cid, this.id);
+            add2Collection(targetCollection.cid, _dragDOM.disp_of.id);
             if (this.parent_banner) {
+              this.parent_banner.collect();
               this.parent_banner.render();
             }
           };
@@ -323,6 +328,18 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
           // 渲染自定义集
           this.dom.classList.add(CLASS_ColleDOM);
           this.setName(`${this.name}(${this.count}, ${Math.floor(percent)}%)`);
+          this.dom.ondrop = (e) => {
+            this.dom.ondragleave(e);
+            console.log("落", e);  // DEBUG
+            while (!(_dragDOM instanceof HTMLSpanElement && _dragDOM.hasOwnProperty("disp_of")))
+              _dragDOM = _dragDOM.parentNode;
+            let targetCollection = customCollections[this.id];
+            add2Collection(targetCollection.cid, _dragDOM.disp_of.id);
+            if (this.parent_banner) {
+              this.parent_banner.collect();
+              this.parent_banner.render();
+            }
+          };
           // TODO 渲染子成分,绑定拖动终点事件
           break;
       }
@@ -330,8 +347,8 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
     }
   }
   TDisp.DispType = {
-    Collection: 0,
-    Statistic: 1,
+    Statistic: 0,
+    Collection: 1,
   };
 
   class TBilibiliUser {
@@ -495,11 +512,12 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
             "name": customCollections[cid].name,
             "cid": cid,
             "count": 0,
-            "contains": [],
+            "components": [],
             "stat_type": TDisp.DispType.Collection,
           }
-          targetCollection.contains.push(curr);
+          targetCollection.components.push(curr);
           targetCollection.count += curr.count;
+          this.forwardCounter[cid] = targetCollection;
           console.log(`<${curr.name}> 属于 <${targetCollection.name}> 自定义集`);
           delete this.forwardCounter[key];
         }
