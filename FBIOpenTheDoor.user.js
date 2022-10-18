@@ -75,27 +75,58 @@ span.${CLASS_StatDOM}, span.${CLASS_ColleDOM} {
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: pre;
+  transition: width 0.5s, ease-in-out;
 }
 
 span.${CLASS_StatDOM}:hover, span.${CLASS_ColleDOM}:hover {
   z-index: 256;
 }
 
+/* 成分条部分 */
 span.${CLASS_StatDOM}:hover a{
   text-decoration: underline;
 }
 
-div.${CLASS_BannerDOM} {
-  display: flex;
-  overflow:hidden;
-  z-index: 128;
+/* 自定义集部分 */
+span.${CLASS_ColleDOM}>ul {
+  position: absolute;
+  top: auto;
+  opacity: 0;
+  transform: translateX(-50%);
+  background-color: inherit;
+  border-left: 5px solid white;
+  border-right: 5px solid white;
+  border-radius: 5px;
+  box-shadow: 0px 0px 5px grey;
+  transition: all 0.5s ease-in-out;
+}
+
+span.${CLASS_ColleDOM}:hover>ul, span.${CLASS_ColleDOM}>ul:hover{
+  opacity: 1;
+}
+
+span.${CLASS_ColleDOM} li{
+  background-color: inherit;
+  border: 2px solid white;
+  padding: 2px;
+  text-align: center;
+  border-top: 3px solid white;
+  border-bottom: 3px solid white;
   padding: 3px;
 }
 
-div.${CLASS_BannerDOM} a {
-  color: black;
-  padding-bottom: 0px;
-  font-weight: 300;
+span.${CLASS_ColleDOM} li:hover>a{
+  text-decoration: underline !important;
+}
+
+/* banner部分 */
+div.${CLASS_BannerDOM} {
+  display: flex;
+  overflow: hidden;
+  z-index: 128;
+  padding: 2px;
+  box-shadow: 0px 0px 5px gray;
+  border-radius: 5px;
 }
 `;
   // 为不同版本适配不同的CSS样式
@@ -258,30 +289,30 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
       this.dom.appendChild(subDOM);
       return this;
     }
-    render(percent) {
+    render(total, components) {
       //// 渲染显示块本身
 
       // common
-      percent *= 100;
+      let percent = this.count / total * 100;
       this.dom.style.width = `${percent}%`;  // 宽度与数量成比例
-      this.dom.onmouseover = () => {
+
+      this.dom.addEventListener("mouseover", () => {
         if (percent < 99)
-          this.dom.style.width = `max(calc(${percent}%), calc(${this.getName().length + 2}em))`;  // 显示所有的字，为数字和半角括号增加冗余空间
-      };
-      this.dom.onmouseleave = () => {
-        this.dom.style.width = `${percent}%`;
-      };
-      this.dom.ondragover = (e) => {
+          setTimeout(() => {
+            this.dom.style.width = `max(calc(${percent}%), calc(${this.getName().length + 2}em))`;  // 显示所有的字，为数字和半角括号增加冗余空间
+          }, 0);
+      });
+      this.dom.addEventListener("dragleave", (e) => {
         e.preventDefault();
-      }
-      this.dom.ondragenter = (e) => {
+      })
+      this.dom.addEventListener("dragenter", (e) => {
         console.log(`进`, e.target);
         this.dom.style.boxShadow = "0px 0px 0.5em grey";
-      };
-      this.dom.ondragleave = (e) => {
+      });
+      this.dom.addEventListener("dragleave", (e) => {
         console.log(`出`, e.target);
         this.dom.style.boxShadow = "";
-      };
+      });
 
       // 修饰每个成分,根据类型
       switch (this.stat_type) {
@@ -298,13 +329,16 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
           this.dom.appendChild(innerDetailDOM);
           this.dom.innerHTML += `(${this.count}, ${Math.floor(percent)}%)`;
 
-          this.dom.ondragstart = (e) => {
+          this.dom.addEventListener("mouseleave", () => {
+            this.dom.style.width = `${percent}%`;
+          });
+          this.dom.addEventListener("dragstart", (e) => {
             console.log("起", e.target);
             _dragDOM = this.dom;
             while (!(_dragDOM instanceof HTMLSpanElement && _dragDOM.hasOwnProperty("disp_of")))
               _dragDOM = _dragDOM.parentNode;
-          }
-          this.dom.ondrop = (e) => {
+          });
+          this.dom.addEventListener("drop", (e) => {
             this.dom.ondragleave(e);
             console.log("落", e);  // DEBUG
             while (!(_dragDOM instanceof HTMLSpanElement && _dragDOM.hasOwnProperty("disp_of")))
@@ -319,7 +353,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
               this.parent_banner.collect();
               this.parent_banner.render();
             }
-          };
+          });
           innerDetailDOM.ondragend = (e) => this.dom.ondragend(e);
           innerDetailDOM.ondragenter = (e) => this.dom.ondragenter(e);
           innerDetailDOM.ondragleave = (e) => this.dom.ondragleave(e);
@@ -329,13 +363,37 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
           this.dom.classList.add(CLASS_ColleDOM);
           this.setName(`${this.name}(${this.count}, ${Math.floor(percent)}%)`);
           let renameInputDOM = document.createElement("input");
-          renameInputDOM.placeholder = this.name;
+          renameInputDOM.placeholder = customCollections[this.id].name;
           renameInputDOM.style.display = "none";
           renameInputDOM.style.width = `${renameInputDOM.placeholder.length + 2}rem`;
           this.dom.appendChild(renameInputDOM);
-          // TODO 渲染子成分,绑定拖动终点事件
 
-          this.dom.ondrop = (e) => {
+          let ul = document.createElement("ul");
+          for (let key in components || []) {
+            let subStat = components[key],
+              li = document.createElement("li"),
+              innerDetailDOM = document.createElement("a"),
+              innerPercent = subStat.count / total * 100;
+            innerDetailDOM.setAttribute("target", "_blank");
+            innerDetailDOM.setAttribute("href", `//space.bilibili.com/${subStat.uid}`);
+            innerDetailDOM.innerText = subStat.name;
+            li.appendChild(innerDetailDOM);
+            li.innerHTML += `(${subStat.count}, ${Math.floor(innerPercent)}%)`;
+            ul.appendChild(li);
+          }
+          this.dom.appendChild(ul);
+
+          let bannerLeft = this.parent_banner.bannerDOM.getBoundingClientRect().x;
+          this.dom.addEventListener("mouseover", () => {
+            // 自定义集显示包含成分，弹出位置
+            let parentWidth = Number(/[0-9\.]+/.exec(getComputedStyle(this.dom)['width'])[0]);
+            let parentLeft = this.dom.getBoundingClientRect().x - bannerLeft;
+            this.dom.querySelector("ul").style.left = `${parentLeft + Math.floor(parentWidth / 2)}px`
+          });
+          this.dom.addEventListener("mouseleave", () => {
+            this.dom.style.width = `${percent}%`;
+          });
+          this.dom.addEventListener("drop", (e) => {
             this.dom.ondragleave(e);
             console.log("落", e);  // DEBUG
             while (!(_dragDOM instanceof HTMLSpanElement && _dragDOM.hasOwnProperty("disp_of")))
@@ -346,10 +404,11 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
               this.parent_banner.collect();
               this.parent_banner.render();
             }
-          };
-          this.dom.ondblclick = (e) => {
+          });
+          this.dom.addEventListener("dblclick", (e) => {
             this.setName("");
             renameInputDOM.style.display = "inline-block";
+            renameInputDOM.focus();
             renameInputDOM.onblur = (e) => {
               this.name = renameInputDOM.value || renameInputDOM.placeholder;
               customCollections[this.id].name = this.name;
@@ -357,7 +416,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
               saveCollection();
               renameInputDOM.style.display = "none";
             }
-          }
+          });
           break;
       }
       return this;
@@ -458,7 +517,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
           curr.count,
           curr.stat_type,
           this
-        ).render(curr.count / this.total));
+        ).render(this.total, curr.components));
       }
 
       // 显示statDOMs，刷新banner 数量较大的成分优先
