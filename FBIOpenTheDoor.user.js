@@ -26,14 +26,14 @@ GitHub: https://github.com/1MLightyears/FBIOpenTheDoor
 (function () {
   "use strict";
 
-  //window.localStorage.setItem("FBIOpenTheDoor", "");  // DEBUG
   const bilibiliVersion = document.body.classList.contains("harmony-font");
   const CLASS_BannerDOM = "FO-banner";  // 成分条class
-  const CLASS_StatDOM = "FO-stat";  // 成分条里每个成分的class
-  const CLASS_Gateway = "FO-gateway";  // 入口的class
-  const CLASS_ColleDOM = "FO-colle";  // 自定义集的class
-  const CLASS_SubDOM = "FO-sub-stat";  // 自定义集中组分的class
-  const CLASS_UPiine = "reply-tags";  // "up主觉得很赞"的class
+  const CLASS_StatDOM = "FO-stat";  // 成分条里每个成分class
+  const CLASS_Gateway = "FO-gateway";  // 入口class
+  const CLASS_ColleDOM = "FO-colle";  // 自定义集class
+  const CLASS_SubDOM = "FO-sub-stat";  // 自定义集中组分class
+  const CLASS_UPiine = "reply-tags";  // "up主觉得很赞"class
+  const CLASS_B_ban = "van-icon-info_prohibit";  // 禁止图标class
   const A_User = "FO-user"  // 已经标注查成分的用户
   const QS_BannerInsertBefore_new = "div.root-reply, div.sub-reply-info";
   const localStorageKey = "FBIOpenTheDoor";
@@ -75,7 +75,7 @@ span.${CLASS_StatDOM}, span.${CLASS_ColleDOM} {
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: pre;
-  transition: width 0.5s, ease-in-out;
+  transition: all 0.5s, ease-in-out;
 }
 
 span.${CLASS_StatDOM}:hover, span.${CLASS_ColleDOM}:hover {
@@ -108,25 +108,40 @@ span.${CLASS_ColleDOM}:hover>ul, span.${CLASS_ColleDOM}>ul:hover{
 span.${CLASS_ColleDOM} li{
   background-color: inherit;
   border: 2px solid white;
-  padding: 2px;
   text-align: center;
   border-top: 3px solid white;
   border-bottom: 3px solid white;
-  padding: 3px;
+  padding: 3px 1.5rem 3px 1.5rem;
 }
 
 span.${CLASS_ColleDOM} li:hover>a{
   text-decoration: underline !important;
 }
 
+span.${CLASS_ColleDOM} li>i{
+  display: inline-block;
+  position: absolute;
+  right: 0;
+  cursor: pointer;
+  font-size: 1rem;
+  margin-right: 2px;
+  color: #fd676f;
+  width: 1rem;
+  opacity: 0;
+}
+
+span.${CLASS_ColleDOM} li:hover>i{
+  opacity: 1;
+}
+
 /* banner部分 */
 div.${CLASS_BannerDOM} {
   display: flex;
   overflow: hidden;
-  z-index: 128;
   padding: 2px;
   box-shadow: 0px 0px 5px gray;
   border-radius: 5px;
+  text-shadow: 0px 0px 2px white;
 }
 `;
   // 为不同版本适配不同的CSS样式
@@ -230,7 +245,6 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
     saveCollection();
     return newCollection;
   }
-
   function add2Collection(cid, uid) {
     ///// 将一个成分条(uid)编入一个自定义集(cid)
     let collection = customCollections[cid];
@@ -239,6 +253,16 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
       stat2Collection[uid] = cid;
     }
     saveCollection();
+  }
+  function removeFromCollection(uid) {
+    //// 将一个子成分条移出自定义集
+    if (!stat2Collection.hasOwnProperty(uid)) return -1;
+    let collection = customCollections[stat2Collection[uid]];
+    collection.contains.splice(collection.contains.indexOf(uid), 1);
+    if (collection.contains.length === 0) delete customCollections[stat2Collection[uid]];
+    delete stat2Collection[uid];
+    saveCollection();
+    return 0;
   }
 
   class TDisp {
@@ -302,15 +326,13 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
             this.dom.style.width = `max(calc(${percent}%), calc(${this.getName().length + 2}em))`;  // 显示所有的字，为数字和半角括号增加冗余空间
           }, 0);
       });
-      this.dom.addEventListener("dragleave", (e) => {
+      this.dom.addEventListener("dragover", (e) => {
         e.preventDefault();
       })
       this.dom.addEventListener("dragenter", (e) => {
-        console.log(`进`, e.target);
         this.dom.style.boxShadow = "0px 0px 0.5em grey";
       });
       this.dom.addEventListener("dragleave", (e) => {
-        console.log(`出`, e.target);
         this.dom.style.boxShadow = "";
       });
 
@@ -333,14 +355,12 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
             this.dom.style.width = `${percent}%`;
           });
           this.dom.addEventListener("dragstart", (e) => {
-            console.log("起", e.target);
             _dragDOM = this.dom;
             while (!(_dragDOM instanceof HTMLSpanElement && _dragDOM.hasOwnProperty("disp_of")))
               _dragDOM = _dragDOM.parentNode;
           });
           this.dom.addEventListener("drop", (e) => {
-            this.dom.ondragleave(e);
-            console.log("落", e);  // DEBUG
+            this.dom.style.boxShadow = "";
             while (!(_dragDOM instanceof HTMLSpanElement && _dragDOM.hasOwnProperty("disp_of")))
               _dragDOM = _dragDOM.parentNode;
             // 不处理自己落自己的情况
@@ -350,13 +370,12 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
             add2Collection(targetCollection.cid, this.id);
             add2Collection(targetCollection.cid, _dragDOM.disp_of.id);
             if (this.parent_banner) {
-              this.parent_banner.collect();
               this.parent_banner.render();
             }
           });
-          innerDetailDOM.ondragend = (e) => this.dom.ondragend(e);
-          innerDetailDOM.ondragenter = (e) => this.dom.ondragenter(e);
-          innerDetailDOM.ondragleave = (e) => this.dom.ondragleave(e);
+          innerDetailDOM.addEventListener("dragend", (e) => this.dom.dispatchEvent(e));
+          innerDetailDOM.addEventListener("dragenter", (e) => this.dom.dispatchEvent(e));
+          innerDetailDOM.addEventListener("dragleave", (e) => this.dom.dispatchEvent(e));
           break;
         case TDisp.DispType.Collection:
           // 渲染自定义集
@@ -366,6 +385,15 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
           renameInputDOM.placeholder = customCollections[this.id].name;
           renameInputDOM.style.display = "none";
           renameInputDOM.style.width = `${renameInputDOM.placeholder.length + 2}rem`;
+          renameInputDOM.onkeyup = renameInputDOM.onblur = (e) => {
+            if (e.type === "keyup" && e.key === "Enter" || e.type === "blur") {
+              this.name = renameInputDOM.value || renameInputDOM.placeholder;
+              customCollections[this.id].name = this.name;
+              this.setName(`${this.name}(${this.count}, ${Math.floor(percent)}%)`);
+              saveCollection();
+              renameInputDOM.style.display = "none";
+            }
+          }
           this.dom.appendChild(renameInputDOM);
 
           let ul = document.createElement("ul");
@@ -379,6 +407,15 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
             innerDetailDOM.innerText = subStat.name;
             li.appendChild(innerDetailDOM);
             li.innerHTML += `(${subStat.count}, ${Math.floor(innerPercent)}%)`;
+            let removeLiI = document.createElement("i");
+            removeLiI.classList.add(CLASS_B_ban);
+            removeLiI.addEventListener("click", () => {
+              // 将当前子成分条的移除出当前自定义集
+              removeFromCollection(subStat.uid);
+              this.parent_banner.render();
+            });
+            li.appendChild(removeLiI);
+
             ul.appendChild(li);
           }
           this.dom.appendChild(ul);
@@ -394,14 +431,12 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
             this.dom.style.width = `${percent}%`;
           });
           this.dom.addEventListener("drop", (e) => {
-            this.dom.ondragleave(e);
-            console.log("落", e);  // DEBUG
+            this.dom.style.boxShadow = "";
             while (!(_dragDOM instanceof HTMLSpanElement && _dragDOM.hasOwnProperty("disp_of")))
               _dragDOM = _dragDOM.parentNode;
             let targetCollection = customCollections[this.id];
             add2Collection(targetCollection.cid, _dragDOM.disp_of.id);
             if (this.parent_banner) {
-              this.parent_banner.collect();
               this.parent_banner.render();
             }
           });
@@ -409,13 +444,6 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
             this.setName("");
             renameInputDOM.style.display = "inline-block";
             renameInputDOM.focus();
-            renameInputDOM.onblur = (e) => {
-              this.name = renameInputDOM.value || renameInputDOM.placeholder;
-              customCollections[this.id].name = this.name;
-              this.setName(`${this.name}(${this.count}, ${Math.floor(percent)}%)`);
-              saveCollection();
-              renameInputDOM.style.display = "none";
-            }
           });
           break;
       }
@@ -494,6 +522,8 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
     render() {
       //// 渲染banner
 
+      this.collect();
+
       // 统计并修饰入口链接
       this.total = 0;
       for (let i in this.forwardCounter) {
@@ -569,7 +599,6 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
             }
             this.offset = resp.data.offset;
             this.has_more = resp.data.has_more;
-            this.collect();
             this.render();
           } else {
             console.warn(`获取失败@uid=${this.uid}: status=${resp.status}`);
@@ -581,21 +610,35 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
       //// 根据自定义集分组情况，修改统计结果forwardCounter
       for (let key in this.forwardCounter) {
         let curr = this.forwardCounter[key];
-        if (curr.stat_type === TDisp.DispType.Statistic &&
-          stat2Collection.hasOwnProperty(curr.uid)) {
-          let cid = stat2Collection[curr.uid];
-          let targetCollection = this.forwardCounter[cid] || {
-            "name": customCollections[cid].name,
-            "cid": cid,
-            "count": 0,
-            "components": [],
-            "stat_type": TDisp.DispType.Collection,
-          }
-          targetCollection.components.push(curr);
-          targetCollection.count += curr.count;
-          this.forwardCounter[cid] = targetCollection;
-          console.log(`<${curr.name}> 属于 <${targetCollection.name}> 自定义集`);
-          delete this.forwardCounter[key];
+        switch (curr.stat_type) {
+          case TDisp.DispType.Statistic:
+            if (stat2Collection.hasOwnProperty(curr.uid)) {
+              let cid = stat2Collection[curr.uid];
+              let targetCollection = this.forwardCounter[cid] || {
+                "name": customCollections[cid].name,
+                "cid": cid,
+                "count": 0,
+                "components": [],
+                "stat_type": TDisp.DispType.Collection,
+              }
+              targetCollection.components.push(curr);
+              targetCollection.count += curr.count;
+              this.forwardCounter[cid] = targetCollection;
+              this.forwardCounter[cid].name = customCollections[cid].name;  // 修改自定义集记录后要刷新这里的name
+              delete this.forwardCounter[key];
+            }
+            break;
+          case TDisp.DispType.Collection:
+            for (let i = curr.components.length - 1; i >= 0; i--) {
+              let subStat = curr.components[i];
+              if (stat2Collection[subStat.uid] !== curr.cid) {
+                this.forwardCounter[subStat.uid] = subStat;
+                curr.count -= subStat.count;
+                curr.components.splice(i, 1);
+              }
+              if (!curr.count) delete this.forwardCounter[key];
+            }
+            break;
         }
       }
     }
