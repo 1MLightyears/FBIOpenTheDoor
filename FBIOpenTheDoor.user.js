@@ -35,10 +35,11 @@ GitHub: https://github.com/1MLightyears/FBIOpenTheDoor
   const CLASS_UPiine = "reply-tags";  // "up主觉得很赞"class
   const CLASS_B_ban = "van-icon-info_prohibit";  // 禁止图标class
   const A_User = "FO-user"  // 已经标注查成分的用户
-  const QS_BannerInsertBefore_new = "div.root-reply, div.sub-reply-info";
-  const localStorageKey = "FBIOpenTheDoor";
+  const QS_BannerInsertBefore_new = "div.root-reply, div.sub-reply-info";  // 新版下banner应插入至此DOM前
+  const localStorageKey = "FBIOpenTheDoor";  // 使用的localStorage的键名
+  const removeIconCode = "2718";  // 删除功能的图标utf-8码
 
-  // 在customCollections中的自定义集的数据结构:
+  // 在customCollections中的自定义集记录的数据结构:
   // {
   //    "cid": <uuid>
   //    "name": <str>
@@ -128,6 +129,10 @@ span.${CLASS_ColleDOM} li>i{
   color: #fd676f;
   width: 1rem;
   opacity: 0;
+}
+
+span.${CLASS_ColleDOM} li>i:before{
+  content: "\\${removeIconCode}";
 }
 
 span.${CLASS_ColleDOM} li:hover>i{
@@ -306,6 +311,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
       let innerDetailDOM = document.createElement("a");
       innerDetailDOM.setAttribute("target", "_blank");
       innerDetailDOM.setAttribute("href", `//space.bilibili.com/${subDOM._id}`);
+      innerDetailDOM.setAttribute("draggable", false);
       innerDetailDOM.innerText = subDOM._name;
       subDOM.appendChild(innerDetailDOM);
       subDOM.innerHTML += `(${subDOM._count}, ${Math.floor(percent)}%)`;
@@ -347,6 +353,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
           let innerDetailDOM = document.createElement("a");
           innerDetailDOM.setAttribute("target", "_blank");
           innerDetailDOM.setAttribute("href", `//space.bilibili.com/${this.id}`);
+          innerDetailDOM.setAttribute("draggable", false);
           innerDetailDOM.innerText = this.name;
           this.dom.appendChild(innerDetailDOM);
           this.dom.innerHTML += `(${this.count}, ${Math.floor(percent)}%)`;
@@ -373,9 +380,15 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
               this.parent_banner.render();
             }
           });
-          innerDetailDOM.addEventListener("dragend", (e) => this.dom.dispatchEvent(e));
-          innerDetailDOM.addEventListener("dragenter", (e) => this.dom.dispatchEvent(e));
-          innerDetailDOM.addEventListener("dragleave", (e) => this.dom.dispatchEvent(e));
+          innerDetailDOM.ondragstart =
+            innerDetailDOM.ondragenter =
+            innerDetailDOM.ondragleave =
+            innerDetailDOM.ondragend = (e) => {
+              // 防止打开链接
+              e.preventDefault();
+              e.stopPropagation();
+              this.dom.dispatchEvent(e);
+            };
           break;
         case TDisp.DispType.Collection:
           // 渲染自定义集
@@ -404,6 +417,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
               innerPercent = subStat.count / total * 100;
             innerDetailDOM.setAttribute("target", "_blank");
             innerDetailDOM.setAttribute("href", `//space.bilibili.com/${subStat.uid}`);
+            innerDetailDOM.setAttribute("draggable", false);
             innerDetailDOM.innerText = subStat.name;
             li.appendChild(innerDetailDOM);
             li.innerHTML += `(${subStat.count}, ${Math.floor(innerPercent)}%)`;
@@ -614,6 +628,16 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
           case TDisp.DispType.Statistic:
             if (stat2Collection.hasOwnProperty(curr.uid)) {
               let cid = stat2Collection[curr.uid];
+              // 在forwardCounter中的自定义集实例的数据结构
+              /*
+              {
+                "name": (str)自定义集名,
+                "cid": (str)uuid,
+                "count": (int)子成分数量和,
+                "components": (array of stat)原先在forwardCounter中的成分实例
+                "stat_type": (TDisp.DispType)对于自定义集，该字段的值为1
+              }
+              */
               let targetCollection = this.forwardCounter[cid] || {
                 "name": customCollections[cid].name,
                 "cid": cid,
