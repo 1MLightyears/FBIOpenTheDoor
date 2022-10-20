@@ -393,12 +393,14 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
               add2Collection(targetCollection.cid, this.id);
             }
             renderAll();
-            for (let i = 0, l = this.parent_banner.statics.length; i < l; i++) {
-              if (this.parent_banner.statics[i].id === targetCollection.cid) {
-                this.parent_banner.statics[i].dom.dispatchEvent(new Event("dblclick"));
-                break;
+            setTimeout(() => {
+              for (let i = 0, l = this.parent_banner.statics.length; i < l; i++) {
+                if (this.parent_banner.statics[i].id === targetCollection.cid) {
+                  this.parent_banner.statics[i].dom.dispatchEvent(new Event("dblclick"));
+                  break;
+                }
               }
-            }
+            }, 100);
           });
           innerDetailDOM.ondragstart =
             innerDetailDOM.ondragenter =
@@ -677,7 +679,8 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
                 curr.count -= subStat.count;
                 curr.components.splice(i, 1);
               }
-              this.forwardCounter[curr.cid].name = customCollections[curr.cid].name;  // 补刷name
+              if (customCollections.hasOwnProperty(curr.cid))
+                this.forwardCounter[curr.cid].name = customCollections[curr.cid].name;  // 补刷name
               if (!curr.count) delete this.forwardCounter[key];
             }
             break;
