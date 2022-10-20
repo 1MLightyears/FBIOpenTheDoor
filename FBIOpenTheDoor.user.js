@@ -34,7 +34,7 @@ GitHub: https://github.com/1MLightyears/FBIOpenTheDoor
   const CLASS_SubDOM = "FO-sub-stat";  // 自定义集中组分class
   const CLASS_UPiine = "reply-tags";  // "up主觉得很赞"class
   const CLASS_B_ban = "van-icon-info_prohibit";  // 禁止图标class
-  const A_User = "FO-user"  // 已经标注查成分的用户
+  const A_User = "FO-user";  // 已经标注查成分的用户
   const QS_BannerInsertBefore_new = "div.root-reply, div.sub-reply-info";  // 新版下banner应插入至此DOM前
   const localStorageKey = "FBIOpenTheDoor";  // 使用的localStorage的键名
   const removeIconCode = "2718";  // 删除功能的图标utf-8码
@@ -77,6 +77,10 @@ span.${CLASS_StatDOM}, span.${CLASS_ColleDOM} {
   overflow: hidden;
   white-space: pre;
   transition: all 0.5s, ease-in-out;
+}
+
+span.${CLASS_ColleDOM} {
+  border-radius: 1rem;
 }
 
 span.${CLASS_StatDOM}:hover, span.${CLASS_ColleDOM}:hover {
@@ -208,7 +212,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
     "DarkSalmon",
     "Tomato",
     "Silver",
-  ]
+  ];
 
   // 评论类型
   const TComment = {
@@ -245,7 +249,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
       "cid": genUuid(),
       "name": "新集合",
       "contains": [],
-    }
+    };
     customCollections[newCollection.cid] = newCollection;
     saveCollection();
     return newCollection;
@@ -268,6 +272,14 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
     delete stat2Collection[uid];
     saveCollection();
     return 0;
+  }
+
+  function renderAll() {
+    for (let i = 0, l = users.length; i < l; i++) {
+      if (users[i].total) {
+        setTimeout(users[i].render.bind(users[i]), 0);
+      }
+    }
   }
 
   class TDisp {
@@ -334,7 +346,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
       });
       this.dom.addEventListener("dragover", (e) => {
         e.preventDefault();
-      })
+      });
       this.dom.addEventListener("dragenter", (e) => {
         this.dom.style.boxShadow = "0px 0px 0.5em grey";
       });
@@ -370,14 +382,22 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
             this.dom.style.boxShadow = "";
             while (!(_dragDOM instanceof HTMLSpanElement && _dragDOM.hasOwnProperty("disp_of")))
               _dragDOM = _dragDOM.parentNode;
-            // 不处理自己落自己的情况
-            if (_dragDOM.disp_of.id === this.id) return;
 
             let targetCollection = createCollection();
-            add2Collection(targetCollection.cid, this.id);
-            add2Collection(targetCollection.cid, _dragDOM.disp_of.id);
-            if (this.parent_banner) {
-              this.parent_banner.render();
+
+            if (_dragDOM.disp_of.id !== this.id) {
+              add2Collection(targetCollection.cid, this.id);
+              add2Collection(targetCollection.cid, _dragDOM.disp_of.id);
+            } else if ((_dragDOM.disp_of.id === this.id) && confirm(`要将【${this.name}】单独编入一个自定义集吗？`)) {
+              // 自己落自己时询问用户
+              add2Collection(targetCollection.cid, this.id);
+            }
+            renderAll();
+            for (let i = 0, l = this.parent_banner.statics.length; i < l; i++) {
+              if (this.parent_banner.statics[i].id === targetCollection.cid) {
+                this.parent_banner.statics[i].dom.dispatchEvent(new Event("dblclick"));
+                break;
+              }
             }
           });
           innerDetailDOM.ondragstart =
@@ -405,13 +425,14 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
               this.setName(`${this.name}(${this.count}, ${Math.floor(percent)}%)`);
               saveCollection();
               renameInputDOM.style.display = "none";
+              renderAll();
             }
-          }
+          };
           this.dom.appendChild(renameInputDOM);
 
           let ul = document.createElement("ul");
-          for (let key in components || []) {
-            let subStat = components[key],
+          for (let i = 0, l = (components || []).length; i < l; i++) {
+            let subStat = components[i],
               li = document.createElement("li"),
               innerDetailDOM = document.createElement("a"),
               innerPercent = subStat.count / total * 100;
@@ -426,7 +447,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
             removeLiI.addEventListener("click", () => {
               // 将当前子成分条的移除出当前自定义集
               removeFromCollection(subStat.uid);
-              this.parent_banner.render();
+              renderAll();
             });
             li.appendChild(removeLiI);
 
@@ -437,9 +458,9 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
           let bannerLeft = this.parent_banner.bannerDOM.getBoundingClientRect().x;
           this.dom.addEventListener("mouseover", () => {
             // 自定义集显示包含成分，弹出位置
-            let parentWidth = Number(/[0-9\.]+/.exec(getComputedStyle(this.dom)['width'])[0]);
+            let parentWidth = Number(/[0-9\.]+/.exec(getComputedStyle(this.dom).width)[0]);
             let parentLeft = this.dom.getBoundingClientRect().x - bannerLeft;
-            this.dom.querySelector("ul").style.left = `${parentLeft + Math.floor(parentWidth / 2)}px`
+            this.dom.querySelector("ul").style.left = `${parentLeft + Math.floor(parentWidth / 2)}px`;
           });
           this.dom.addEventListener("mouseleave", () => {
             this.dom.style.width = `${percent}%`;
@@ -450,9 +471,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
               _dragDOM = _dragDOM.parentNode;
             let targetCollection = customCollections[this.id];
             add2Collection(targetCollection.cid, _dragDOM.disp_of.id);
-            if (this.parent_banner) {
-              this.parent_banner.render();
-            }
+            renderAll();
           });
           this.dom.addEventListener("dblclick", (e) => {
             this.setName("");
@@ -483,7 +502,6 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
       this.forwardCounter = {};
       this.bannerDOM = document.createElement("div");
       this.statics = [];
-      this.collectionDOMs = {};
       this.offset = null;
       this.total = 0;
 
@@ -506,7 +524,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
     locateUserHeader() {
       //// 定位用户行，确定评论类型
       let userHeaderDOM = this.commentDOM.querySelector(QS_MainCommentUserHeader);
-      this.commentType = TComment.MainComment
+      this.commentType = TComment.MainComment;
       if (!userHeaderDOM) {
         userHeaderDOM = this.commentDOM.querySelector(QS_ReplyUserHeader);
         this.commentType = TComment.ReplyComment;
@@ -578,8 +596,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
     }
     fetchHomepage() {
       //// 拿B站API url
-      return `https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space?&host_mid=${this.uid}`
-        + (!!this.offset ? `&offset=${this.offset}` : "");
+      return `https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space?&host_mid=${this.uid}` + (!!this.offset ? `&offset=${this.offset}` : "");
     }
     getForwards() {
       //// XHR拿动态列表
@@ -607,7 +624,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
                     "uid": item.orig.modules.module_author.mid,
                     "count": 1,
                     "stat_type": TDisp.DispType.Statistic
-                  }
+                  };
                 }
               }
             }
@@ -618,7 +635,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
             console.warn(`获取失败@uid=${this.uid}: status=${resp.status}`);
           }
         }.bind(this)
-      })
+      });
     }
     collect() {
       //// 根据自定义集分组情况，修改统计结果forwardCounter
@@ -644,11 +661,11 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
                 "count": 0,
                 "components": [],
                 "stat_type": TDisp.DispType.Collection,
-              }
+              };
               targetCollection.components.push(curr);
               targetCollection.count += curr.count;
               this.forwardCounter[cid] = targetCollection;
-              this.forwardCounter[cid].name = customCollections[cid].name;  // 修改自定义集记录后要刷新这里的name
+              this.forwardCounter[cid].name = customCollections[cid].name;  // 补刷name
               delete this.forwardCounter[key];
             }
             break;
@@ -660,6 +677,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
                 curr.count -= subStat.count;
                 curr.components.splice(i, 1);
               }
+              this.forwardCounter[curr.cid].name = customCollections[curr.cid].name;  // 补刷name
               if (!curr.count) delete this.forwardCounter[key];
             }
             break;
