@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        FBI Open the door! B站评论区用户转发动态统计
 // @namespace   lightyears.im
-// @version     1.0
+// @version     1.1
 // @description 统计B站评论区内用户转发动态的情况，按照原动态UP主分类。
 // @author      1MLightyears
 // @match       *://www.bilibili.com/video/*
@@ -247,12 +247,27 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
     //// 新建一个自定义集并记录
     let newCollection = {
       "cid": genUuid(),
-      "name": "新集合",
+      "name": "",
       "contains": [],
     };
     customCollections[newCollection.cid] = newCollection;
     saveCollection();
     return newCollection;
+  }
+  function mergeCollection(targetCollection, ...collections) {
+    //// 将一些自定义集并入targetCollection自定义集
+    // name为targetCollection的，count为所有collections的count之和再加targetCollection的
+    for (let i = 0; i < collections.length; i++) {
+      let co = collections[i];
+      for (let j = 0; j < co.contains.length; j++) {
+        if (!targetCollection.contains.includes(co.contains[j])) {
+          targetCollection.contains.push(co.contains[j]);
+          stat2Collection[co.contains[j]] = targetCollection.cid;
+        }
+      }
+      delete customCollections[co.cid];
+    }
+    saveCollection();
   }
   function add2Collection(cid, uid) {
     ///// 将一个成分条(uid)编入一个自定义集(cid)
@@ -273,8 +288,25 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
     saveCollection();
     return 0;
   }
+  function renameCollection(collection, newName) {
+    //// 重命名一个自定义集为newName。
+    // 解决重名冲突。若重名则返回false，否则返回重复的自定义集的uid。
+    let repeated = "";
+    for (let i in customCollections) {
+      let c = customCollections[i];
+      if (c.name === newName) {
+        repeated = c;
+        break;
+      }
+    }
+    if (!repeated) {
+      collection.name = newName;
+      return 0;
+    } else return repeated;
+  }
 
   function renderAll() {
+    //// 渲染当前页面上所有banner
     for (let i = 0, l = users.length; i < l; i++) {
       if (users[i].total) {
         setTimeout(users[i].render.bind(users[i]), 0);
@@ -417,18 +449,31 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
           this.dom.classList.add(CLASS_ColleDOM);
           this.setName(`${this.name}(${this.count}, ${Math.floor(percent)}%)`);
           let renameInputDOM = document.createElement("input");
-          renameInputDOM.placeholder = customCollections[this.id].name;
+          renameInputDOM.placeholder = customCollections[this.id].name || "新集合";
           renameInputDOM.style.display = "none";
           renameInputDOM.style.width = `${renameInputDOM.placeholder.length + 2}rem`;
-          renameInputDOM.onkeyup = renameInputDOM.onblur = (e) => {
-            if (e.type === "keyup" && e.key === "Enter" || e.type === "blur") {
-              this.name = renameInputDOM.value || renameInputDOM.placeholder;
-              customCollections[this.id].name = this.name;
-              this.setName(`${this.name}(${this.count}, ${Math.floor(percent)}%)`);
-              saveCollection();
-              renameInputDOM.style.display = "none";
-              renderAll();
+          renameInputDOM.onkeyup = (e) => { if (e.type === "keyup" && e.key === "Enter") { e.target.blur(); } }
+          renameInputDOM.onblur = (e) => {
+            this.name = renameInputDOM.value || renameInputDOM.placeholder;
+            // 检查有无重名的自定义集
+            let renret;
+            for (; ;) {
+              renret = renameCollection(customCollections[this.id], this.name);
+              if (!!renret) {
+                if (confirm(`已经有名为【${this.name}】的自定义集。是否合并它们？\n\n选择取消将建立名为【${this.name}*】的新自定义集。`)) {
+                  mergeCollection(customCollections[renret.cid], customCollections[this.id]);
+                  renderAll();
+                  return;
+                } else {
+                  this.name += "*";
+                }
+              } else break;
             }
+            customCollections[this.id].name = this.name;
+            this.setName(`${this.name}(${this.count}, ${Math.floor(percent)}%)`);
+            saveCollection();
+            renameInputDOM.style.display = "none";
+            renderAll();
           };
           this.dom.appendChild(renameInputDOM);
 
@@ -506,6 +551,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
       this.statics = [];
       this.offset = null;
       this.total = 0;
+      this.multi_query = false;
 
       this.gatewayDOM = this.createGateway();
       if (bilibiliVersion) {
@@ -539,6 +585,10 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
       gatewayDOM.classList.add(CLASS_Gateway);
       gatewayDOM.innerHTML = "开门！查成分！";
       gatewayDOM.onclick = this.getForwards.bind(this);
+      gatewayDOM.ondblclick = () => {
+        this.multi_query = true;
+        this.getForwards();
+      };
 
       // "up主觉得很赞"是div block,移动顺序
       let upiineDOM = null;
@@ -565,9 +615,14 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
       }
       this.gatewayDOM.text = `(已查询到${this.total}条) `;
       if (this.has_more) {
-        this.gatewayDOM.text += "继续查！";
+        if (this.multi_query) {
+          setTimeout(this.getForwards(), 0);
+        } else {
+          this.gatewayDOM.text += "继续查!( ‘·A·’)";
+        }
       } else {
         this.gatewayDOM.onclick = null;
+        this.gatewayDOM.ondblclick = null;
       }
       this.bannerDOM.innerHTML = "";
 
@@ -641,49 +696,63 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
     }
     collect() {
       //// 根据自定义集分组情况，修改统计结果forwardCounter
+
+      // 先将每个成分从自定义集中拆出来
       for (let key in this.forwardCounter) {
         let curr = this.forwardCounter[key];
-        switch (curr.stat_type) {
-          case TDisp.DispType.Statistic:
-            if (stat2Collection.hasOwnProperty(curr.uid)) {
-              let cid = stat2Collection[curr.uid];
-              // 在forwardCounter中的自定义集实例的数据结构
-              /*
-              {
-                "name": (str)自定义集名,
-                "cid": (str)uuid,
-                "count": (int)子成分数量和,
-                "components": (array of stat)原先在forwardCounter中的成分实例
-                "stat_type": (TDisp.DispType)对于自定义集，该字段的值为1
-              }
-              */
-              let targetCollection = this.forwardCounter[cid] || {
-                "name": customCollections[cid].name,
-                "cid": cid,
-                "count": 0,
-                "components": [],
-                "stat_type": TDisp.DispType.Collection,
-              };
-              targetCollection.components.push(curr);
-              targetCollection.count += curr.count;
-              this.forwardCounter[cid] = targetCollection;
-              this.forwardCounter[cid].name = customCollections[cid].name;  // 补刷name
-              delete this.forwardCounter[key];
-            }
-            break;
-          case TDisp.DispType.Collection:
-            for (let i = curr.components.length - 1; i >= 0; i--) {
-              let subStat = curr.components[i];
-              if (stat2Collection[subStat.uid] !== curr.cid) {
-                this.forwardCounter[subStat.uid] = subStat;
-                curr.count -= subStat.count;
-                curr.components.splice(i, 1);
-              }
-              if (customCollections.hasOwnProperty(curr.cid))
-                this.forwardCounter[curr.cid].name = customCollections[curr.cid].name;  // 补刷name
-              if (!curr.count) delete this.forwardCounter[key];
-            }
-            break;
+        if (curr.stat_type === TDisp.DispType.Collection) {
+          for (let i = curr.components.length - 1; i >= 0; i--) {
+            let subStat = curr.components[i];
+            let rawStat = this.forwardCounter[subStat.uid] ||
+            // 在forwardCounter中的成分实例的数据结构
+            /*
+            {
+              "name": (str)up名,
+              "uid": (str)uuid,
+              "count": (int)该up被转发的次数,
+              "stat_type": (TDisp.DispType)对于成分条，该字段值为0(i.e. Statistic)
+            };
+            */
+            {
+              "name": subStat.name,
+              "uid": subStat.uid,
+              "count": 0,
+              "stat_type": subStat.stat_type,
+            };
+            rawStat.count += subStat.count;
+            this.forwardCounter[subStat.uid] = rawStat;
+          }
+          delete this.forwardCounter[key];
+        }
+      }
+
+      // 再全部重新分组
+      for (let key in this.forwardCounter) {
+        let curr = this.forwardCounter[key];
+        if (curr.stat_type === TDisp.DispType.Statistic && stat2Collection.hasOwnProperty(curr.uid)) {
+          let cid = stat2Collection[curr.uid];
+          // 在forwardCounter中的自定义集实例的数据结构
+          /*
+          {
+            "name": (str)自定义集名,
+            "cid": (str)uuid,
+            "count": (int)子成分数量和,
+            "components": (array of stat)原先在forwardCounter中的成分实例
+            "stat_type": (TDisp.DispType)对于自定义集，该字段的值为1(i.e. Collection)
+          }
+          */
+          let targetCollection = this.forwardCounter[cid] || {
+            "name": customCollections[cid].name,
+            "cid": cid,
+            "count": 0,
+            "components": [],
+            "stat_type": TDisp.DispType.Collection,
+          };
+          targetCollection.components.push(curr);
+          targetCollection.count += curr.count;
+          this.forwardCounter[cid] = targetCollection;
+          this.forwardCounter[cid].name = customCollections[cid].name;  // 补刷name
+          delete this.forwardCounter[key];
         }
       }
     }
