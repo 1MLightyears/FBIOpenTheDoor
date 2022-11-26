@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        FBI Open the door! B站评论区用户转发动态统计
 // @namespace   lightyears.im
-// @version     1.1
+// @version     1.2
 // @description 统计B站评论区内用户转发动态的情况，按照原动态UP主分类。
 // @author      1MLightyears
 // @match       *://www.bilibili.com/video/*
@@ -38,6 +38,8 @@ GitHub: https://github.com/1MLightyears/FBIOpenTheDoor
   const QS_BannerInsertBefore_new = "div.root-reply, div.sub-reply-info";  // 新版下banner应插入至此DOM前
   const localStorageKey = "FBIOpenTheDoor";  // 使用的localStorage的键名
   const removeIconCode = "2718";  // 删除功能的图标utf-8码
+  const URL_basic = "t.bilibili.com"  // 跨域时的基准自定义集定义所在的网址
+  const sync_collections = window.location.host !== URL_basic; // 是否同步的自定义集定义
 
   // 在customCollections中的自定义集记录的数据结构:
   // {
@@ -45,7 +47,40 @@ GitHub: https://github.com/1MLightyears/FBIOpenTheDoor
   //    "name": <str>
   //    "contains": [<list of uid>]
   // }
-  var customCollections = JSON.parse(window.localStorage.getItem(localStorageKey) || '{"collections":{}}').collections;
+  let iframe_t;
+  function initCollections() {
+    //// 从localStorage获取自定义集记录。
+    // 20221126 FIX: t.bilibili.com 和 www.bilibili.com 中间存在跨域问题，localStorage不同步
+    // sync_collections(bool): 是否从根域获取自定义集记录
+    let customCollections = JSON.parse(window.localStorage.getItem(localStorageKey) || '{ "collections": { } }').collections;
+    ;
+    if (!!sync_collections) {
+      // 合并t.bilibili.com的自定义集记录
+      let rev_index = {}
+      for (let i in customCollections) {
+        rev_index[customCollections[i].name] = customCollections[i];
+      }
+
+      if (!iframe_t) {
+        alert(`URL = ${document.URL}, sync`);
+        iframe_t = document.createElement('iframe');
+        iframe_t.style.display = 'none';
+        iframe_t.src = `https://${URL_basic}/`;
+        document.body.appendChild(iframe_t);
+        let t_collections = iframe_t.contentWindow.customCollections;
+        for (let i in t_collections) {
+          if (rev_index.hasOwnProperty(t_collections[i].name)) {
+            let target = rev_index[t_collections[i].name];
+            target.contains.concat(t_collections[i].contains);
+          } else {
+            customCollections[i] = t_collections[i];
+          }
+        }
+      }
+    }
+
+  }
+  var customCollections = initCollections();
 
   let A_Uid, QS_MainCommentUserHeader, QS_ReplyUserHeader, QS_Uid, QS_NewUser, QS_ToolbarDOM;
   if (bilibiliVersion) {
@@ -233,7 +268,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
 
   function genUuid() {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-      var r = (Math.random() * 16) | 0,
+      let r = (Math.random() * 16) | 0,
         v = c == 'x' ? r : (r & 0x3) | 0x8;
       return v.toString(16);
     });
@@ -241,7 +276,11 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
 
   function saveCollection() {
     //// 保存自定义集设定至localStorage
-    window.localStorage.setItem(localStorageKey, JSON.stringify({ "collections": customCollections }));
+    let t = JSON.stringify({ "collections": customCollections });
+    window.localStorage.setItem(localStorageKey, t);
+    if (!!sync_collections && !!iframe_t) {
+      setTimeout(iframe_t.contentWindow.saveCollection(), 0);
+    }
   }
   function createCollection() {
     //// 新建一个自定义集并记录
