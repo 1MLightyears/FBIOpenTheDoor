@@ -26,6 +26,14 @@ GitHub: https://github.com/1MLightyears/FBIOpenTheDoor
 (function () {
   "use strict";
 
+  function genUuid() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+      let r = (Math.random() * 16) | 0,
+        v = c == 'x' ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  }
+
   const bilibiliVersion = document.body.classList.contains("harmony-font");
   const CLASS_BannerDOM = "FO-banner";  // 成分条class
   const CLASS_StatDOM = "FO-stat";  // 成分条里每个成分class
@@ -41,46 +49,21 @@ GitHub: https://github.com/1MLightyears/FBIOpenTheDoor
   const URL_basic = "t.bilibili.com"  // 跨域时的基准自定义集定义所在的网址
   const sync_collections = window.location.host !== URL_basic; // 是否同步的自定义集定义
 
+  // 初始化成分条反查自定义集cid
+  let stat2Collection = {};
+
+  // dataTransfer不能存取对象?
+  let _dragDOM = null;
+
+  let iframe_t;
+
   // 在customCollections中的自定义集记录的数据结构:
   // {
   //    "cid": <uuid>
   //    "name": <str>
   //    "contains": [<list of uid>]
   // }
-  let iframe_t;
-  function initCollections() {
-    //// 从localStorage获取自定义集记录。
-    // 20221126 FIX: t.bilibili.com 和 www.bilibili.com 中间存在跨域问题，localStorage不同步
-    // sync_collections(bool): 是否从根域获取自定义集记录
-    let customCollections = JSON.parse(window.localStorage.getItem(localStorageKey) || '{ "collections": { } }').collections;
-    ;
-    if (!!sync_collections) {
-      // 合并t.bilibili.com的自定义集记录
-      let rev_index = {}
-      for (let i in customCollections) {
-        rev_index[customCollections[i].name] = customCollections[i];
-      }
-
-      if (!iframe_t) {
-        alert(`URL = ${document.URL}, sync`);
-        iframe_t = document.createElement('iframe');
-        iframe_t.style.display = 'none';
-        iframe_t.src = `https://${URL_basic}/`;
-        document.body.appendChild(iframe_t);
-        let t_collections = iframe_t.contentWindow.customCollections;
-        for (let i in t_collections) {
-          if (rev_index.hasOwnProperty(t_collections[i].name)) {
-            let target = rev_index[t_collections[i].name];
-            target.contains.concat(t_collections[i].contains);
-          } else {
-            customCollections[i] = t_collections[i];
-          }
-        }
-      }
-    }
-
-  }
-  var customCollections = initCollections();
+  let customCollections = JSON.parse(window.localStorage.getItem(localStorageKey) || '{ "collections": { } }').collections;
 
   let A_Uid, QS_MainCommentUserHeader, QS_ReplyUserHeader, QS_Uid, QS_NewUser, QS_ToolbarDOM;
   if (bilibiliVersion) {
@@ -255,32 +238,32 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
     ReplyComment: 1,  // 评论区回复楼中楼评论
   };
 
-  // 初始化成分条反查自定义集cid
-  let stat2Collection = {};
-  for (let c in customCollections) {
-    for (let i = 0, l = customCollections[c].contains.length; i < l; i++) {
-      stat2Collection[customCollections[c].contains[i]] = c;
-    }
+  // 跨域信息类型
+  const TCOM = {
+    UPDATE_COLLECTIONS: 0,
+    FETCH_COLLECTIONS: 1,
   }
 
-  // dataTransfer不能存取对象?
-  let _dragDOM = null;
-
-  function genUuid() {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-      let r = (Math.random() * 16) | 0,
-        v = c == 'x' ? r : (r & 0x3) | 0x8;
-      return v.toString(16);
-    });
+  function updateStat2Collection() {
+    //// 修改自定义集记录后关联修改反向索引
+    for (let c in customCollections) {
+      for (let i = 0, l = customCollections[c].contains.length; i < l; i++) {
+        stat2Collection[customCollections[c].contains[i]] = c;
+      }
+    }
   }
 
   function saveCollection() {
     //// 保存自定义集设定至localStorage
+    if (sync_collections) {
+      iframe_t.contentWindow.postMessage({
+        COM: TCOM.UPDATE_COLLECTIONS,
+        data: customCollections,
+      }, iframe_t.src);
+    }
     let t = JSON.stringify({ "collections": customCollections });
     window.localStorage.setItem(localStorageKey, t);
-    if (!!sync_collections && !!iframe_t) {
-      setTimeout(iframe_t.contentWindow.saveCollection(), 0);
-    }
+    updateStat2Collection();
   }
   function createCollection() {
     //// 新建一个自定义集并记录
@@ -290,7 +273,6 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
       "contains": [],
     };
     customCollections[newCollection.cid] = newCollection;
-    saveCollection();
     return newCollection;
   }
   function mergeCollection(targetCollection, ...collections) {
@@ -794,6 +776,66 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
           delete this.forwardCounter[key];
         }
       }
+    }
+  }
+
+
+  //// 从localStorage获取自定义集记录。
+  // 20221126 FIX: t.bilibili.com 和 www.bilibili.com 中间存在跨域问题，localStorage不同步
+  // sync_collections(bool): 是否从URL_basic获取自定义集记录
+  if (!sync_collections) {
+    function handleCollections(e) {
+      //// URL_basic页面的窗口事件响应
+      let origin = e.origin || e.originalEvent.origin;
+      if (new RegExp("www.bilibili.com").exec(origin)) {
+        switch (e.data.COM) {
+          case TCOM.UPDATE_COLLECTIONS:
+            customCollections = e.data.data || {};
+            saveCollection();
+            break;
+          case TCOM.FETCH_COLLECTIONS:
+            e.source.postMessage({
+              COM: TCOM.UPDATE_COLLECTIONS,
+              data: customCollections
+            }, origin);
+            break;
+        }
+      }
+    }
+    window.addEventListener("message", handleCollections, false);
+  } else {
+    function recvCollections(e) {
+      //// 非URL_basic页面，接受URL_basic页面返回的自定义集
+      let origin = e.origin || e.originalEvent.origin;
+      if ((new RegExp(URL_basic).exec(origin))) {
+        switch (e.data.COM) {
+          case TCOM.UPDATE_COLLECTIONS:
+            let t_collections = e.data.data, rev_index = {};
+            for (let i in customCollections) {
+              rev_index[customCollections[i].name] = customCollections[i];
+            }
+            for (let i in t_collections) {
+              if (rev_index.hasOwnProperty(t_collections[i].name)) {
+                let target = rev_index[t_collections[i].name];
+                target.contains.concat(t_collections[i].contains);
+              } else {
+                customCollections[i] = t_collections[i];
+              }
+            }
+            updateStat2Collection();
+            break;
+        }
+      }
+    }
+    window.addEventListener("message", recvCollections, false);
+
+    // 合并t.bilibili.com的自定义集记录
+    iframe_t = document.createElement('iframe');
+    iframe_t.style.display = 'none';
+    iframe_t.src = `https://${URL_basic}/`;
+    document.body.appendChild(iframe_t);
+    iframe_t.onload = () => {
+      iframe_t.contentWindow.postMessage({ COM: TCOM.FETCH_COLLECTIONS }, iframe_t.src);
     }
   }
 
