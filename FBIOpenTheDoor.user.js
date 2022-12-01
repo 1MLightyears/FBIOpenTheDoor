@@ -240,7 +240,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
 
   // 跨域信息类型
   const TCOM = {
-    UPDATE_COLLECTIONS: 0,
+    UPDATE_COLLECTIONS: 0,  // data字段为携带的customCollections
     FETCH_COLLECTIONS: 1,
   }
 
@@ -637,7 +637,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
       this.gatewayDOM.text = `(已查询到${this.total}条) `;
       if (this.has_more) {
         if (this.multi_query) {
-          setTimeout(this.getForwards(), 0);
+          setTimeout(this.getForwards(), Math.random() * 100);
         } else {
           this.gatewayDOM.text += "继续查!( ‘·A·’)";
         }
@@ -779,7 +779,6 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
     }
   }
 
-
   //// 从localStorage获取自定义集记录。
   // 20221126 FIX: t.bilibili.com 和 www.bilibili.com 中间存在跨域问题，localStorage不同步
   // sync_collections(bool): 是否从URL_basic获取自定义集记录
@@ -832,11 +831,14 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
     // 合并t.bilibili.com的自定义集记录
     iframe_t = document.createElement('iframe');
     iframe_t.style.display = 'none';
-    iframe_t.src = `https://${URL_basic}/`;
     document.body.appendChild(iframe_t);
     iframe_t.onload = () => {
-      iframe_t.contentWindow.postMessage({ COM: TCOM.FETCH_COLLECTIONS }, iframe_t.src);
+      if (!!iframe_t.src.length)
+        iframe_t.contentWindow.postMessage({ COM: TCOM.FETCH_COLLECTIONS }, iframe_t.src);
     }
+    window.addEventListener("load", () => {
+      iframe_t.src = `https://${URL_basic}/`;
+    });
   }
 
   // main
