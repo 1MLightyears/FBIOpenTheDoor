@@ -46,7 +46,7 @@ GitHub: https://github.com/1MLightyears/FBIOpenTheDoor
   const QS_BannerInsertBefore_new = "div.root-reply, div.sub-reply-info";  // 新版下banner应插入至此DOM前
   const localStorageKey = "FBIOpenTheDoor";  // 使用的localStorage的键名
   const removeIconCode = "2718";  // 删除功能的图标utf-8码
-  const URL_basic = "t.bilibili.com"  // 跨域时的基准自定义集定义所在的网址
+  const URL_basic = "t.bilibili.com";  // 跨域时的基准自定义集定义所在的网址
   const sync_collections = window.location.host !== URL_basic; // 是否同步的自定义集定义
 
   // 初始化成分条反查自定义集cid
@@ -242,7 +242,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
   const TCOM = {
     UPDATE_COLLECTIONS: 0,  // data字段为携带的customCollections
     FETCH_COLLECTIONS: 1,
-  }
+  };
 
   function updateStat2Collection() {
     //// 修改自定义集记录后关联修改反向索引
@@ -473,7 +473,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
           renameInputDOM.placeholder = customCollections[this.id].name || "新集合";
           renameInputDOM.style.display = "none";
           renameInputDOM.style.width = `${renameInputDOM.placeholder.length + 2}rem`;
-          renameInputDOM.onkeyup = (e) => { if (e.type === "keyup" && e.key === "Enter") { e.target.blur(); } }
+          renameInputDOM.onkeyup = (e) => { if (e.type === "keyup" && e.key === "Enter") { e.target.blur(); } };
           renameInputDOM.onblur = (e) => {
             this.name = renameInputDOM.value || renameInputDOM.placeholder;
             // 检查有无重名的自定义集
@@ -835,7 +835,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
     iframe_t.onload = () => {
       if (!!iframe_t.src.length)
         iframe_t.contentWindow.postMessage({ COM: TCOM.FETCH_COLLECTIONS }, iframe_t.src);
-    }
+    };
     window.addEventListener("load", () => {
       iframe_t.src = `https://${URL_basic}/`;
     });
