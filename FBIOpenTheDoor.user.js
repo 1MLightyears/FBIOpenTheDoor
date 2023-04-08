@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        FBI Open the door! B站评论区用户转发动态统计
 // @namespace   lightyears.im
-// @version     1.2
+// @version     1.2.2
 // @description 统计B站评论区内用户转发动态的情况，按照原动态UP主分类。
 // @author      1MLightyears
 // @match       *://www.bilibili.com/video/*
@@ -786,7 +786,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
     function handleCollections(e) {
       //// URL_basic页面的窗口事件响应
       let origin = e.origin || e.originalEvent.origin;
-      if (new RegExp("www.bilibili.com").exec(origin)) {
+      if (new RegExp("bilibili.com").exec(origin)) {
         switch (e.data.COM) {
           case TCOM.UPDATE_COLLECTIONS:
             customCollections = e.data.data || {};
@@ -802,6 +802,11 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
       }
     }
     window.addEventListener("message", handleCollections, false);
+
+    updateStat2Collection();
+    console.log(`%c开门！\n查成分！\n%c(v1.2.2)`,
+      `font-size: 2.5em;font-style:italic;color:gold`,
+      `font-size:1em;color:cyan;font-style:italic`);
   } else {
     function recvCollections(e) {
       //// 非URL_basic页面，接受URL_basic页面返回的自定义集
@@ -821,7 +826,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
                 customCollections[i] = t_collections[i];
               }
             }
-            updateStat2Collection();
+            saveCollection();
             break;
         }
       }
@@ -850,5 +855,4 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
       users.push(new TBilibiliUser(newUsersDOM[i]));
     }
   }, 5000);
-  console.log(`%c开门！\n查成分！`, `font-size: 1.5em;font-style: italic;color:gold`);
 })();
