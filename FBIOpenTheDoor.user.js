@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        FBI Open the door! B站评论区用户转发动态统计
 // @namespace   lightyears.im
-// @version     1.2.2
+// @version     1.2.3
 // @description 统计B站评论区内用户转发动态的情况，按照原动态UP主分类。
 // @author      1MLightyears
 // @match       *://www.bilibili.com/video/*
@@ -11,6 +11,7 @@
 // @icon        https://static.hdslb.com/images/favicon.ico
 // @grant       GM_xmlhttpRequest
 // @grant       GM_addStyle
+// @grant       GM_info
 // @connect     api.bilibili.com
 // @license     Apache Licence 2.0
 // @run-at      document-end
@@ -34,7 +35,7 @@ GitHub: https://github.com/1MLightyears/FBIOpenTheDoor
     });
   }
 
-  const bilibiliVersion = document.body.classList.contains("harmony-font");
+  const bilibiliVersion = !document.querySelector(".bili-dyn-version-control");  // 新旧版本flag
   const CLASS_BannerDOM = "FO-banner";  // 成分条class
   const CLASS_StatDOM = "FO-stat";  // 成分条里每个成分class
   const CLASS_Gateway = "FO-gateway";  // 入口class
@@ -48,22 +49,6 @@ GitHub: https://github.com/1MLightyears/FBIOpenTheDoor
   const removeIconCode = "2718";  // 删除功能的图标utf-8码
   const URL_basic = "t.bilibili.com";  // 跨域时的基准自定义集定义所在的网址
   const sync_collections = window.location.host !== URL_basic; // 是否同步的自定义集定义
-
-  // 初始化成分条反查自定义集cid
-  let stat2Collection = {};
-
-  // dataTransfer不能存取对象?
-  let _dragDOM = null;
-
-  let iframe_t;
-
-  // 在customCollections中的自定义集记录的数据结构:
-  // {
-  //    "cid": <uuid>
-  //    "name": <str>
-  //    "contains": [<list of uid>]
-  // }
-  let customCollections = JSON.parse(window.localStorage.getItem(localStorageKey) || '{ "collections": { } }').collections;
 
   let A_Uid, QS_MainCommentUserHeader, QS_ReplyUserHeader, QS_Uid, QS_NewUser, QS_ToolbarDOM;
   if (bilibiliVersion) {
@@ -216,6 +201,23 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
 }`;
   }
 
+  // 初始化成分条反查自定义集cid
+  let stat2Collection = {};
+
+  // dataTransfer不能存取对象?
+  let _dragDOM = null;
+
+  let iframe_t;
+
+  // 在customCollections中的自定义集记录的数据结构:
+  // {
+  //    "cid": <uuid>
+  //    "name": <str>
+  //    "contains": [<list of uid>]
+  // }
+  let customCollections = JSON.parse(window.localStorage.getItem(localStorageKey) || '{ "collections": { } }').collections;
+
+
   // 颜色盘
   const pallete = [
     "Pink",
@@ -265,6 +267,7 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
     window.localStorage.setItem(localStorageKey, t);
     updateStat2Collection();
   }
+
   function createCollection() {
     //// 新建一个自定义集并记录
     let newCollection = {
@@ -274,6 +277,15 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
     };
     customCollections[newCollection.cid] = newCollection;
     return newCollection;
+  }
+
+  function removeCollection(collection) {
+    if (!!customCollections[collection.cid]) {
+      delete customCollections[collection.cid];
+        return true;
+    } else {
+        return false;
+    }
   }
   function mergeCollection(targetCollection, ...collections) {
     //// 将一些自定义集并入targetCollection自定义集
@@ -392,10 +404,11 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
       this.dom.style.width = `${percent}%`;  // 宽度与数量成比例
 
       this.dom.addEventListener("mouseover", () => {
-        if (percent < 99)
+        if (percent < 99) {
           setTimeout(() => {
             this.dom.style.width = `max(calc(${percent}%), calc(${this.getName().length + 2}em))`;  // 显示所有的字，为数字和半角括号增加冗余空间
           }, 0);
+        }
       });
       this.dom.addEventListener("dragover", (e) => {
         e.preventDefault();
@@ -428,23 +441,27 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
           });
           this.dom.addEventListener("dragstart", (e) => {
             _dragDOM = this.dom;
-            while (!(_dragDOM instanceof HTMLSpanElement && _dragDOM.hasOwnProperty("disp_of")))
+            while (!(_dragDOM instanceof HTMLSpanElement && _dragDOM.hasOwnProperty("disp_of"))) {
               _dragDOM = _dragDOM.parentNode;
+            }
           });
           this.dom.addEventListener("drop", (e) => {
             this.dom.style.boxShadow = "";
-            while (!(_dragDOM instanceof HTMLSpanElement && _dragDOM.hasOwnProperty("disp_of")))
+            while (!(_dragDOM instanceof HTMLSpanElement && _dragDOM.hasOwnProperty("disp_of"))) {
               _dragDOM = _dragDOM.parentNode;
+            }
 
             let targetCollection = createCollection();
 
             if (_dragDOM.disp_of.id !== this.id) {
               add2Collection(targetCollection.cid, this.id);
               add2Collection(targetCollection.cid, _dragDOM.disp_of.id);
-            } else if ((_dragDOM.disp_of.id === this.id) && confirm(`要将【${this.name}】单独编入一个自定义集吗？`)) {
+            } else if (confirm(`要将【${this.name}】单独编入一个自定义集吗？`)) {
               // 自己落自己时询问用户
               add2Collection(targetCollection.cid, this.id);
-            }
+            } else {
+               removeCollection(targetCollection);
+             }
             renderAll();
             setTimeout(() => {
               for (let i = 0, l = this.parent_banner.statics.length; i < l; i++) {
@@ -535,8 +552,9 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
           });
           this.dom.addEventListener("drop", (e) => {
             this.dom.style.boxShadow = "";
-            while (!(_dragDOM instanceof HTMLSpanElement && _dragDOM.hasOwnProperty("disp_of")))
+            while (!(_dragDOM instanceof HTMLSpanElement && _dragDOM.hasOwnProperty("disp_of"))) {
               _dragDOM = _dragDOM.parentNode;
+            }
             let targetCollection = customCollections[this.id];
             add2Collection(targetCollection.cid, _dragDOM.disp_of.id);
             renderAll();
@@ -688,6 +706,9 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
         },
         onload: function (resp) {
           if (resp.status === 200) {
+            if (!resp.data) {
+              this.gatewayDOM.text=`受到流量控制||( -_-) 请稍后再试`;
+            }
             resp = JSON.parse(resp.response);
             for (let i = 0; i < resp.data.items.length; i++) {
               let item = resp.data.items[i];
@@ -709,8 +730,10 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
             this.offset = resp.data.offset;
             this.has_more = resp.data.has_more;
             this.render();
+              return true;
           } else {
             console.warn(`获取失败@uid=${this.uid}: status=${resp.status}`);
+            return false;
           }
         }.bind(this)
       });
@@ -804,17 +827,19 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
     window.addEventListener("message", handleCollections, false);
 
     updateStat2Collection();
-    console.log(`%c开门！\n查成分！\n%c(v1.2.2)`,
+    console.log(`%c开门！\n查成分！\n%c(v${GM_info.script.version})`,
       `font-size: 2.5em;font-style:italic;color:gold`,
       `font-size:1em;color:cyan;font-style:italic`);
   } else {
     function recvCollections(e) {
       //// 非URL_basic页面，接受URL_basic页面返回的自定义集
       let origin = e.origin || e.originalEvent.origin;
+      let t_collections, rev_index;
       if ((new RegExp(URL_basic).exec(origin))) {
         switch (e.data.COM) {
           case TCOM.UPDATE_COLLECTIONS:
-            let t_collections = e.data.data, rev_index = {};
+            t_collections = e.data.data;
+            rev_index = {};
             for (let i in customCollections) {
               rev_index[customCollections[i].name] = customCollections[i];
             }
@@ -838,8 +863,9 @@ div.con div.reply-item:hover a.${CLASS_Gateway} {
     iframe_t.style.display = 'none';
     document.body.appendChild(iframe_t);
     iframe_t.onload = () => {
-      if (!!iframe_t.src.length)
+      if (!!iframe_t.src.length) {
         iframe_t.contentWindow.postMessage({ COM: TCOM.FETCH_COLLECTIONS }, iframe_t.src);
+      }
     };
     window.addEventListener("load", () => {
       iframe_t.src = `https://${URL_basic}/`;
